@@ -60,12 +60,25 @@ resource "aws_lambda_function" "create_note_function" {
   runtime       = "python3.12"
 
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+
+  environment {
+    variables = {
+      TABLE_NAME = aws_dynamodb_table.notes_table.name
+    }
+  }
 }
 
 # 7. Create the HTTP API Gateway
 resource "aws_apigatewayv2_api" "http_api" {
   name          = "NotesAPI"
   protocol_type = "HTTP"
+
+  cors_configuration {
+    allow_origins = ["*"]
+    allow_methods = ["POST", "GET", "OPTIONS"]
+    allow_headers = ["Content-Type", "Authorization"]
+    max_age       = 300
+  }
 }
 
 # 8. Connect API Gateway to Lambda (Integration)
@@ -77,9 +90,11 @@ resource "aws_apigatewayv2_integration" "lambda_integration" {
 
 # 9. Create the Route (POST /notes)
 resource "aws_apigatewayv2_route" "post_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "POST /notes"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "POST /notes"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_authorizer.id
 }
 
 # 10. Deploy the API Gateway Stage
@@ -101,4 +116,49 @@ resource "aws_lambda_permission" "api_gw_permission" {
 # Output the Live API URL so you can test it immediately
 output "api_endpoint" {
   value = aws_apigatewayv2_api.http_api.api_endpoint
+}
+
+# 12. Create the Cognito User Pool (The User Directory)
+resource "aws_cognito_user_pool" "user_pool" {
+  name = "NotesAppUsers"
+
+  # We want users to log in with their email address
+  alias_attributes         = ["email"]
+  auto_verified_attributes = ["email"]
+
+  password_policy {
+    minimum_length    = 8
+    require_lowercase = true
+    require_numbers   = true
+    require_symbols   = false
+    require_uppercase = true
+  }
+}
+
+# 13. Create the Cognito App Client (For the Frontend to talk to)
+resource "aws_cognito_user_pool_client" "user_pool_client" {
+  name         = "NotesAppFrontendClient"
+  user_pool_id = aws_cognito_user_pool.user_pool.id
+
+  # We set this to false because web browsers (JavaScript) cannot securely hide secrets
+  generate_secret = false
+
+  explicit_auth_flows = [
+    "ALLOW_USER_PASSWORD_AUTH",
+    "ALLOW_USER_SRP_AUTH",
+    "ALLOW_REFRESH_TOKEN_AUTH"
+  ]
+}
+
+# 14. Create the API Gateway Authorizer (The Bouncer)
+resource "aws_apigatewayv2_authorizer" "cognito_authorizer" {
+  api_id           = aws_apigatewayv2_api.http_api.id
+  authorizer_type  = "JWT"
+  identity_sources = ["$request.header.Authorization"]
+  name             = "CognitoJWTAuthorizer"
+
+  jwt_configuration {
+    audience = [aws_cognito_user_pool_client.user_pool_client.id]
+    issuer   = "https://${aws_cognito_user_pool.user_pool.endpoint}"
+  }
 }
