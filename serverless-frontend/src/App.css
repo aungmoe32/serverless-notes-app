@@ -1,5 +1,37 @@
 /* App.css — clean, minimal UI */
 
+/* ── Tab bar ─────────────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  gap: 2px;
+  background: var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 20px;
+}
+
+.tab {
+  flex: 1;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--sans);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text);
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab:hover { background: var(--accent-bg); }
+
+.tab-active {
+  background: var(--bg);
+  color: var(--text-h);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
 /* ── Layout ──────────────────────────────────────────── */
 .app-shell {
   display: flex;

@@ -1,0 +1,40 @@
+# Repomix Output
+repomix-output.txt
+repomix-output.json
+repomix-output.xml
+repomix-output.md
+
+# Vite Build Output
+dist/
+build/
+
+# Lockfiles (Save thousands of tokens)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+
+# Static Assets & Public Folder (Images, SVGs, Fonts)
+public/
+src/assets/
+**/*.svg
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.ico
+**/*.css
+
+# Testing (Ignore unless prompts specifically require testing context)
+coverage/
+**/*.test.{js,jsx,ts,tsx}
+**/*.spec.{js,jsx,ts,tsx}
+**/__tests__/
+
+# Continuous Integration & IDEs
+.github/
+.vscode/
+.idea/
+
+# Environment Local Secrets (Repomix blocks these naturally, but good to ensure)
+.env*.local

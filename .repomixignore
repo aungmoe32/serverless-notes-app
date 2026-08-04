@@ -1,0 +1,35 @@
+# Repomix Output
+repomix-output.*
+
+# Local Terraform directories (Contains heavy provider binaries)
+.terraform/
+
+# Terraform State Files (CRITICAL: Contains secrets & plain-text passwords)
+*.tfstate
+*.tfstate.*
+crash.log
+*.crash.log
+
+# Terraform Variables (Often contains real secrets/keys)
+*.tfvars
+*.tfvars.json
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI Configuration & Plan files
+.terraformrc
+terraform.rc
+.terraform.lock.hcl
+*.tfplan
+
+# Terragrunt cache (If you use Terragrunt)
+.terragrunt-cache/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store

@@ -122,8 +122,9 @@ output "api_endpoint" {
 resource "aws_cognito_user_pool" "user_pool" {
   name = "NotesAppUsers"
 
-  # We want users to log in with their email address
-  alias_attributes         = ["email"]
+  # Email IS the username — prevents duplicate accounts at sign-up time
+  # (alias_attributes allows duplicates until confirmation; username_attributes does not)
+  username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
 
   password_policy {
