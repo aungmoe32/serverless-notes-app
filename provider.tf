@@ -4,7 +4,7 @@ provider "aws" {
 
 terraform {
   backend "s3" {
-    bucket = "my-tf-state-bucket-moe"
+    bucket = "my-tf-state-bucket-myint"
     key    = "serverless-webapp-project/terraform.tfstate"
     region = "us-east-1"
   }

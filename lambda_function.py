@@ -42,7 +42,7 @@ def lambda_handler(event, context):
             }
         )
         
-        logger.info({"message": "Note created successfully", "user_id": user_id, "note_id": note_id})
+        logger.info(json.dumps({"message": "Note created successfully", "user_id": user_id, "note_id": note_id}))
         
         return {
             'statusCode': 201,
