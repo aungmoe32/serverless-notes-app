@@ -163,3 +163,57 @@ resource "aws_apigatewayv2_authorizer" "cognito_authorizer" {
     issuer   = "https://${aws_cognito_user_pool.user_pool.endpoint}"
   }
 }
+
+# --- SSM PARAMETER STORE (THE BRIDGE) ---
+
+resource "aws_ssm_parameter" "api_endpoint" {
+  name  = "/notesapp/prod/api-endpoint"
+  type  = "String"
+  value = aws_apigatewayv2_api.http_api.api_endpoint
+}
+
+resource "aws_ssm_parameter" "user_pool_id" {
+  name  = "/notesapp/prod/user-pool-id"
+  type  = "String"
+  value = aws_cognito_user_pool.user_pool.id
+}
+
+resource "aws_ssm_parameter" "client_id" {
+  name  = "/notesapp/prod/client-id"
+  type  = "String"
+  value = aws_cognito_user_pool_client.user_pool_client.id
+}
+
+# --- AMPLIFY IAM ROLE ---
+
+resource "aws_iam_role" "amplify_service_role" {
+  name = "AmplifyHostingServiceRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "amplify.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "amplify_ssm_policy" {
+  name = "AmplifyReadSSMParameters"
+  role = aws_iam_role.amplify_service_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "ssm:GetParameter"
+      Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/notesapp/prod/*"
+    }]
+  })
+}
+
+# (You will need to add this data block at the top of your main.tf to get your AWS Account ID dynamically)
+data "aws_caller_identity" "current" {}
