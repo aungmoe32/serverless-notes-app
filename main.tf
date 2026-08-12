@@ -1,6 +1,6 @@
 # 2. Create the DynamoDB Table
 resource "aws_dynamodb_table" "notes_table" {
-  name         = "NotesTable"
+  name         = "NotesTable-${terraform.workspace}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "UserId"
   range_key    = "NoteId"
@@ -18,7 +18,7 @@ resource "aws_dynamodb_table" "notes_table" {
 
 # 3. Create the IAM Role for Lambda
 resource "aws_iam_role" "lambda_exec_role" {
-  name = "create_note_lambda_role"
+  name = "create_note_lambda_role_${terraform.workspace}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -54,7 +54,7 @@ data "archive_file" "lambda_zip" {
 # 6. Create the Lambda Function
 resource "aws_lambda_function" "create_note_function" {
   filename      = "lambda_function.zip"
-  function_name = "CreateNoteFunction"
+  function_name = "CreateNoteFunction-${terraform.workspace}"
   role          = aws_iam_role.lambda_exec_role.arn
   handler       = "lambda_function.lambda_handler"
   runtime       = "python3.12"
@@ -70,7 +70,7 @@ resource "aws_lambda_function" "create_note_function" {
 
 # 7. Create the HTTP API Gateway
 resource "aws_apigatewayv2_api" "http_api" {
-  name          = "NotesAPI"
+  name          = "NotesAPI-${terraform.workspace}"
   protocol_type = "HTTP"
 
   cors_configuration {
@@ -115,7 +115,7 @@ resource "aws_lambda_permission" "api_gw_permission" {
 
 # 12. Create the Cognito User Pool (The User Directory)
 resource "aws_cognito_user_pool" "user_pool" {
-  name = "NotesAppUsers"
+  name = "NotesAppUsers-${terraform.workspace}"
 
   # Email IS the username — prevents duplicate accounts at sign-up time
   # (alias_attributes allows duplicates until confirmation; username_attributes does not)
@@ -133,7 +133,7 @@ resource "aws_cognito_user_pool" "user_pool" {
 
 # 13. Create the Cognito App Client (For the Frontend to talk to)
 resource "aws_cognito_user_pool_client" "user_pool_client" {
-  name         = "NotesAppFrontendClient"
+  name         = "NotesAppFrontendClient-${terraform.workspace}"
   user_pool_id = aws_cognito_user_pool.user_pool.id
 
   # We set this to false because web browsers (JavaScript) cannot securely hide secrets
@@ -151,7 +151,7 @@ resource "aws_apigatewayv2_authorizer" "cognito_authorizer" {
   api_id           = aws_apigatewayv2_api.http_api.id
   authorizer_type  = "JWT"
   identity_sources = ["$request.header.Authorization"]
-  name             = "CognitoJWTAuthorizer"
+  name             = "CognitoJWTAuthorizer-${terraform.workspace}"
 
   jwt_configuration {
     audience = [aws_cognito_user_pool_client.user_pool_client.id]
@@ -162,19 +162,19 @@ resource "aws_apigatewayv2_authorizer" "cognito_authorizer" {
 # --- SSM PARAMETER STORE (THE BRIDGE) ---
 
 resource "aws_ssm_parameter" "api_endpoint" {
-  name  = "/notesapp/prod/api-endpoint"
+  name  = "/notesapp/${terraform.workspace}/api-endpoint"
   type  = "String"
   value = aws_apigatewayv2_api.http_api.api_endpoint
 }
 
 resource "aws_ssm_parameter" "user_pool_id" {
-  name  = "/notesapp/prod/user-pool-id"
+  name  = "/notesapp/${terraform.workspace}/user-pool-id"
   type  = "String"
   value = aws_cognito_user_pool.user_pool.id
 }
 
 resource "aws_ssm_parameter" "client_id" {
-  name  = "/notesapp/prod/client-id"
+  name  = "/notesapp/${terraform.workspace}/client-id"
   type  = "String"
   value = aws_cognito_user_pool_client.user_pool_client.id
 }
@@ -182,7 +182,7 @@ resource "aws_ssm_parameter" "client_id" {
 # --- AMPLIFY IAM ROLE ---
 
 resource "aws_iam_role" "amplify_service_role" {
-  name = "AmplifyHostingServiceRole"
+  name = "AmplifyHostingServiceRole-${terraform.workspace}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -205,10 +205,22 @@ resource "aws_iam_role_policy" "amplify_ssm_policy" {
     Statement = [{
       Effect   = "Allow"
       Action   = "ssm:GetParameter"
-      Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/notesapp/prod/*"
+      Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/notesapp/${terraform.workspace}/*"
     }]
   })
 }
 
 # (You will need to add this data block at the top of your main.tf to get your AWS Account ID dynamically)
 data "aws_caller_identity" "current" {}
+
+# Automatically write local frontend variables ONLY if we are in the dev workspace
+resource "local_file" "frontend_env" {
+  count    = terraform.workspace == "dev" ? 1 : 0
+  filename = "${path.module}/serverless-frontend/.env.local"
+  content  = <<-EOT
+    VITE_AWS_REGION="${var.aws_region}"
+    VITE_USER_POOL_ID="${aws_cognito_user_pool.user_pool.id}"
+    VITE_USER_POOL_CLIENT_ID="${aws_cognito_user_pool_client.user_pool_client.id}"
+    VITE_API_ENDPOINT="${aws_apigatewayv2_api.http_api.api_endpoint}"
+  EOT
+}
