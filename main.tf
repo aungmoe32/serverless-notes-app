@@ -113,11 +113,6 @@ resource "aws_lambda_permission" "api_gw_permission" {
   source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
 }
 
-# Output the Live API URL so you can test it immediately
-output "api_endpoint" {
-  value = aws_apigatewayv2_api.http_api.api_endpoint
-}
-
 # 12. Create the Cognito User Pool (The User Directory)
 resource "aws_cognito_user_pool" "user_pool" {
   name = "NotesAppUsers"
