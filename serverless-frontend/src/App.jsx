@@ -8,7 +8,7 @@ import {
   getCurrentUser,
   fetchAuthSession,
 } from "aws-amplify/auth";
-import { post } from "aws-amplify/api";
+import { post, get, del } from "aws-amplify/api";
 import "./App.css";
 
 // View state machine:
@@ -31,16 +31,42 @@ function App() {
 
   // App
   const [note, setNote] = useState("");
+  const [notesList, setNotesList] = useState([]);
   const [status, setStatus] = useState("");
 
   const isError =
     status.toLowerCase().startsWith("error") ||
     status.toLowerCase().startsWith("failed");
 
+  // --- FETCH ALL NOTES ---
+  const fetchNotes = async () => {
+    try {
+      const session = await fetchAuthSession();
+      if (!session.tokens?.idToken) return;
+      const token = session.tokens.idToken.toString();
+
+      const restOperation = get({
+        apiName: "NotesAPI",
+        path: "/notes",
+        options: { headers: { Authorization: token } },
+      });
+
+      const response = await restOperation.response;
+      const data = await response.body.json();
+      setNotesList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      setStatus(`Failed to fetch notes: ${err.message}`);
+    }
+  };
+
   // Restore session on page load
   useEffect(() => {
     getCurrentUser()
-      .then(() => setView("app"))
+      .then(() => {
+        setView("app");
+        fetchNotes();
+      })
       .catch(() => {}); // no session — stay on login screen
   }, []);
 
@@ -62,7 +88,6 @@ function App() {
         setStatus("Check your email for a verification code.");
         setView("verify");
       } else if (nextStep.signUpStep === "DONE") {
-        // Auto-confirmed (e.g. admin confirmed users setting)
         setStatus("Account created! Please sign in.");
         setView("login");
       }
@@ -78,7 +103,6 @@ function App() {
     e.preventDefault();
     setStatus("Verifying...");
     try {
-      // username_attributes=["email"] means email is the username — use it directly
       await confirmSignUp({ username: email, confirmationCode: code });
       setStatus("Email verified! Please sign in.");
       setCode("");
@@ -106,6 +130,7 @@ function App() {
       } else if (nextStep.signInStep === "DONE") {
         setView("app");
         setStatus("Successfully logged in!");
+        fetchNotes();
       }
     } catch (err) {
       if (err.name === "UserAlreadyAuthenticatedException") {
@@ -124,6 +149,7 @@ function App() {
           } else if (nextStep.signInStep === "DONE") {
             setView("app");
             setStatus("Successfully logged in!");
+            fetchNotes();
           }
         } catch (retryErr) {
           setStatus(`Error: ${retryErr.message}`);
@@ -146,6 +172,7 @@ function App() {
         setView("app");
         setNewPassword("");
         setStatus("Password updated and successfully logged in!");
+        fetchNotes();
       }
     } catch (err) {
       setNewPassword("");
@@ -182,6 +209,7 @@ function App() {
       const data = await response.body.json();
 
       setStatus(`Note saved! ID: ${data.NoteId}`);
+      setNotesList((prev) => [...prev, { NoteId: data.NoteId, Note: note }]);
       setNote("");
     } catch (err) {
       console.error(err);
@@ -189,13 +217,43 @@ function App() {
     }
   };
 
-  // ── 6. SIGN OUT ──────────────────────────────────────────────
+  // ── 6. DELETE NOTE ───────────────────────────────────────────
+  const handleDeleteNote = async (noteId) => {
+    // 1. Optimistic UI Update: Remove it from the screen instantly
+    setNotesList((prevNotes) => prevNotes.filter((n) => n.NoteId !== noteId));
+
+    try {
+      const session = await fetchAuthSession();
+      if (!session.tokens?.idToken) {
+        setStatus("Error: Session expired. Please sign in again.");
+        setView("login");
+        return;
+      }
+      const token = session.tokens.idToken.toString();
+
+      const restOperation = del({
+        apiName: "NotesAPI",
+        path: `/notes/${noteId}`,
+        options: { headers: { Authorization: token } },
+      });
+
+      await restOperation.response;
+      setStatus("Note deleted.");
+    } catch (err) {
+      console.error(err);
+      setStatus(`Failed to delete note: ${err.message}`);
+      fetchNotes();
+    }
+  };
+
+  // ── 7. SIGN OUT ──────────────────────────────────────────────
   const handleSignOut = async () => {
     await signOut();
     setView("login");
     setEmail("");
     setPassword("");
     setNote("");
+    setNotesList([]);
     setStatus("");
   };
 
@@ -367,6 +425,41 @@ function App() {
               <button className="btn btn-ghost" onClick={handleSignOut}>
                 Sign out
               </button>
+            </div>
+
+            <div style={{ marginTop: "24px", textAlign: "left" }}>
+              <p className="form-title">Your Notes</p>
+              {notesList.length === 0 ? (
+                <p style={{ fontSize: "14px", color: "var(--text)", marginTop: "8px" }}>No notes found.</p>
+              ) : (
+                <ul style={{ listStyleType: "none", padding: 0, margin: "8px 0 0 0" }}>
+                  {notesList.map((n) => (
+                    <li
+                      key={n.NoteId}
+                      style={{
+                        border: "1px solid var(--border)",
+                        marginBottom: "8px",
+                        padding: "10px 12px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        borderRadius: "8px",
+                        background: "var(--bg)",
+                        fontSize: "14px"
+                      }}
+                    >
+                      <span style={{ color: "var(--text-h)", wordBreak: "break-word" }}>{n.Note}</span>
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() => handleDeleteNote(n.NoteId)}
+                        style={{ color: "#e05252", padding: "4px 8px", fontSize: "12px", marginLeft: "12px", flexShrink: 0 }}
+                      >
+                        Delete
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         )}

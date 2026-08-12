@@ -75,7 +75,7 @@ resource "aws_apigatewayv2_api" "http_api" {
 
   cors_configuration {
     allow_origins = ["*"]
-    allow_methods = ["POST", "GET", "OPTIONS"]
+    allow_methods = ["POST", "GET", "DELETE", "OPTIONS"]
     allow_headers = ["Content-Type", "Authorization"]
     max_age       = 300
   }
@@ -92,6 +92,24 @@ resource "aws_apigatewayv2_integration" "lambda_integration" {
 resource "aws_apigatewayv2_route" "post_route" {
   api_id             = aws_apigatewayv2_api.http_api.id
   route_key          = "POST /notes"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_authorizer.id
+}
+
+# 9b. Create the Route (GET /notes)
+resource "aws_apigatewayv2_route" "get_route" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "GET /notes"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_authorizer.id
+}
+
+# 9c. Create the Route (DELETE /notes/{id})
+resource "aws_apigatewayv2_route" "delete_route" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "DELETE /notes/{id}"
   target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.cognito_authorizer.id
