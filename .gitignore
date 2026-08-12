@@ -26,3 +26,5 @@ terraform.rc
 # Ignore Mac/Windows system files (optional but recommended)
 .DS_Store
 Thumbs.db
+
+repomix-output.md

@@ -5,7 +5,7 @@ resource "aws_iam_openid_connect_provider" "github_oidc" {
   url            = "https://token.actions.githubusercontent.com"
   client_id_list = ["sts.amazonaws.com"]
   # GitHub's OIDC thumbprint (This is standard across all AWS accounts)
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1", "1c58a3a8518e8759bf075b76b750d4f2df264fcd"]
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1", "1c58a3a8518e8759bf075b76b750d4f2df264fcd", "1b511abead59c6ce207077c0bf0e0043b1382612"]
 }
 
 # 2. Create the IAM Role that GitHub Actions will assume
@@ -26,7 +26,7 @@ resource "aws_iam_role" "github_actions_tf_role" {
         },
         "StringLike" : {
           # CRITICAL SECURITY: Only YOUR specific repository can assume this role.
-          "token.actions.githubusercontent.com:sub" : "repo:aungmoe32/serverless-notes-app:*"
+          "token.actions.githubusercontent.com:sub" : "repo:aungmoe32@125842632/serverless-notes-app@1323660203:*"
         }
       }
     }]
