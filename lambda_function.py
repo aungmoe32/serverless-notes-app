@@ -63,6 +63,30 @@ def lambda_handler(event, context):
                 'body': json.dumps(response.get('Items', []))
             }
 
+        # UPDATE NOTE (PUT)
+        elif http_method == 'PUT':
+            path_params = event.get('pathParameters', {}) or {}
+            note_id = path_params.get('id')
+
+            body = json.loads(event.get('body', '{}'))
+            note_content = body.get('Note')
+
+            if not note_id or not note_content:
+                return {"statusCode": 400, "body": json.dumps("Note ID and Note content are required.")}
+
+            # Perform a surgical update on just the 'Note' attribute
+            table.update_item(
+                Key={'UserId': user_id, 'NoteId': note_id},
+                UpdateExpression="SET Note = :val1",
+                ExpressionAttributeValues={":val1": note_content}
+            )
+
+            return {
+                'statusCode': 200,
+                'headers': {'Content-Type': 'application/json'},
+                'body': json.dumps({"message": "Note updated successfully", "NoteId": note_id})
+            }
+
         # DELETE NOTE (DELETE)
         elif http_method == 'DELETE':
             # Extract the {id} variable from the URL path (e.g., /notes/12345)

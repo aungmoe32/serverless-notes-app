@@ -75,7 +75,7 @@ resource "aws_apigatewayv2_api" "http_api" {
 
   cors_configuration {
     allow_origins = ["*"]
-    allow_methods = ["POST", "GET", "DELETE", "OPTIONS"]
+    allow_methods = ["POST", "GET", "DELETE", "PUT", "OPTIONS"]
     allow_headers = ["Content-Type", "Authorization"]
     max_age       = 300
   }
@@ -110,6 +110,15 @@ resource "aws_apigatewayv2_route" "get_route" {
 resource "aws_apigatewayv2_route" "delete_route" {
   api_id             = aws_apigatewayv2_api.http_api.id
   route_key          = "DELETE /notes/{id}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_authorizer.id
+}
+
+# 9d. Create the Route (PUT /notes/{id})
+resource "aws_apigatewayv2_route" "put_route" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "PUT /notes/{id}"
   target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.cognito_authorizer.id

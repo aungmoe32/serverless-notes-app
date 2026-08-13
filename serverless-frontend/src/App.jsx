@@ -8,7 +8,7 @@ import {
   getCurrentUser,
   fetchAuthSession,
 } from "aws-amplify/auth";
-import { post, get, del } from "aws-amplify/api";
+import { post, get, del, put } from "aws-amplify/api";
 import "./App.css";
 
 // View state machine:
@@ -32,6 +32,8 @@ function App() {
   // App
   const [note, setNote] = useState("");
   const [notesList, setNotesList] = useState([]);
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editNoteText, setEditNoteText] = useState("");
   const [status, setStatus] = useState("");
 
   const isError =
@@ -217,7 +219,50 @@ function App() {
     }
   };
 
-  // ── 6. DELETE NOTE ───────────────────────────────────────────
+  // ── 6. UPDATE NOTE ───────────────────────────────────────────
+  const handleUpdateNote = async (noteId) => {
+    if (!editNoteText.trim()) return;
+
+    // 1. Optimistic UI Update: Instantly update the note on screen
+    setNotesList((prevNotes) =>
+      prevNotes.map((n) =>
+        n.NoteId === noteId ? { ...n, Note: editNoteText } : n,
+      ),
+    );
+
+    // Reset editing state
+    setEditingNoteId(null);
+    setEditNoteText("");
+    setStatus("Updating note...");
+
+    try {
+      const session = await fetchAuthSession();
+      if (!session.tokens?.idToken) {
+        setStatus("Error: Session expired. Please sign in again.");
+        setView("login");
+        return;
+      }
+      const token = session.tokens.idToken.toString();
+
+      const restOperation = put({
+        apiName: "NotesAPI",
+        path: `/notes/${noteId}`,
+        options: {
+          headers: { Authorization: token },
+          body: { Note: editNoteText },
+        },
+      });
+
+      await restOperation.response;
+      setStatus("Note successfully updated!");
+    } catch (err) {
+      console.error(err);
+      setStatus(`Failed to update note: ${err.message}`);
+      fetchNotes(); // Re-fetch from DB if it fails to fix the UI
+    }
+  };
+
+  // ── 7. DELETE NOTE ───────────────────────────────────────────
   const handleDeleteNote = async (noteId) => {
     // 1. Optimistic UI Update: Remove it from the screen instantly
     setNotesList((prevNotes) => prevNotes.filter((n) => n.NoteId !== noteId));
@@ -246,7 +291,7 @@ function App() {
     }
   };
 
-  // ── 7. SIGN OUT ──────────────────────────────────────────────
+  // ── 8. SIGN OUT ──────────────────────────────────────────────
   const handleSignOut = async () => {
     await signOut();
     setView("login");
@@ -254,6 +299,8 @@ function App() {
     setPassword("");
     setNote("");
     setNotesList([]);
+    setEditingNoteId(null);
+    setEditNoteText("");
     setStatus("");
   };
 
@@ -448,14 +495,54 @@ function App() {
                         fontSize: "14px"
                       }}
                     >
-                      <span style={{ color: "var(--text-h)", wordBreak: "break-word" }}>{n.Note}</span>
-                      <button
-                        className="btn btn-ghost"
-                        onClick={() => handleDeleteNote(n.NoteId)}
-                        style={{ color: "#e05252", padding: "4px 8px", fontSize: "12px", marginLeft: "12px", flexShrink: 0 }}
-                      >
-                        Delete
-                      </button>
+                      {editingNoteId === n.NoteId ? (
+                        <div style={{ display: "flex", width: "100%", gap: "8px", alignItems: "center" }}>
+                          <input
+                            className="input"
+                            type="text"
+                            value={editNoteText}
+                            onChange={(e) => setEditNoteText(e.target.value)}
+                            style={{ flexGrow: 1 }}
+                          />
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => handleUpdateNote(n.NoteId)}
+                            style={{ padding: "6px 12px", fontSize: "12px" }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="btn btn-ghost"
+                            onClick={() => setEditingNoteId(null)}
+                            style={{ padding: "6px 12px", fontSize: "12px" }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <span style={{ color: "var(--text-h)", wordBreak: "break-word" }}>{n.Note}</span>
+                          <div style={{ display: "flex", gap: "4px", flexShrink: 0, marginLeft: "12px" }}>
+                            <button
+                              className="btn btn-ghost"
+                              onClick={() => {
+                                setEditingNoteId(n.NoteId);
+                                setEditNoteText(n.Note);
+                              }}
+                              style={{ color: "var(--accent)", padding: "4px 8px", fontSize: "12px" }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-ghost"
+                              onClick={() => handleDeleteNote(n.NoteId)}
+                              style={{ color: "#e05252", padding: "4px 8px", fontSize: "12px" }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>
