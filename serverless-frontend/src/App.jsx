@@ -9,7 +9,7 @@ import {
   fetchAuthSession,
 } from "aws-amplify/auth";
 import { post, get, del, put } from "aws-amplify/api";
-import { uploadData } from "aws-amplify/storage";
+import { uploadData, getUrl } from "aws-amplify/storage";
 import "./App.css";
 
 // View state machine:
@@ -42,13 +42,15 @@ function App() {
     status.toLowerCase().startsWith("error") ||
     status.toLowerCase().startsWith("failed");
 
-  // --- FETCH ALL NOTES ---
+  // --- FETCH ALL NOTES (WITH S3 PRE-SIGNED URLS) ---
   const fetchNotes = async () => {
     try {
       const session = await fetchAuthSession();
       if (!session.tokens?.idToken) return;
       const token = session.tokens.idToken.toString();
+      const identityId = session.identityId;
 
+      // 1. Fetch notes from API Gateway / DynamoDB
       const restOperation = get({
         apiName: "NotesAPI",
         path: "/notes",
@@ -57,7 +59,28 @@ function App() {
 
       const response = await restOperation.response;
       const data = await response.body.json();
-      setNotesList(Array.isArray(data) ? data : []);
+
+      // 2. Generate secure pre-signed URLs for attachments
+      const notesWithUrls = await Promise.all(
+        (Array.isArray(data) ? data : []).map(async (noteItem) => {
+          if (noteItem.Attachment && identityId) {
+            try {
+              const s3Path = `private/${identityId}/${noteItem.Attachment}`;
+              const linkToStorageFile = await getUrl({ path: s3Path });
+              return {
+                ...noteItem,
+                AttachmentUrl: linkToStorageFile.url.toString(),
+              };
+            } catch (err) {
+              console.error(`Failed to get URL for ${noteItem.Attachment}`, err);
+            }
+          }
+          return noteItem;
+        })
+      );
+
+      // 3. Update the UI state
+      setNotesList(notesWithUrls);
     } catch (err) {
       console.error(err);
       setStatus(`Failed to fetch notes: ${err.message}`);
@@ -199,6 +222,7 @@ function App() {
       }
 
       let attachmentKey = null;
+      let attachmentUrl = null;
 
       // --- DIRECT S3 UPLOAD ---
       if (file) {
@@ -212,6 +236,14 @@ function App() {
 
         await uploadTask.result;
         attachmentKey = file.name;
+
+        // Generate pre-signed URL for immediate UI display
+        try {
+          const linkToStorageFile = await getUrl({ path: s3Path });
+          attachmentUrl = linkToStorageFile.url.toString();
+        } catch (urlErr) {
+          console.error("Failed to generate pre-signed URL:", urlErr);
+        }
       }
 
       // --- SAVE NOTE TO DYNAMODB ---
@@ -241,7 +273,12 @@ function App() {
 
       setNotesList((prev) => [
         ...prev,
-        { NoteId: data.NoteId, Note: note, Attachment: attachmentKey },
+        {
+          NoteId: data.NoteId,
+          Note: note,
+          Attachment: attachmentKey,
+          AttachmentUrl: attachmentUrl,
+        },
       ]);
     } catch (err) {
       console.error(err);
@@ -552,7 +589,7 @@ function App() {
                         padding: "10px 12px",
                         display: "flex",
                         justifyContent: "space-between",
-                        alignItems: "center",
+                        alignItems: "flex-start",
                         borderRadius: "8px",
                         background: "var(--bg)",
                         fontSize: "14px",
@@ -595,7 +632,8 @@ function App() {
                             style={{
                               display: "flex",
                               flexDirection: "column",
-                              gap: "2px",
+                              gap: "6px",
+                              flexGrow: 1,
                             }}
                           >
                             <span
@@ -606,7 +644,43 @@ function App() {
                             >
                               {n.Note}
                             </span>
-                            {n.Attachment && (
+
+                            {/* PRE-SIGNED S3 ATTACHMENT DISPLAY */}
+                            {n.AttachmentUrl && (
+                              <div style={{ marginTop: "4px" }}>
+                                <img
+                                  src={n.AttachmentUrl}
+                                  alt="Attachment preview"
+                                  style={{
+                                    maxWidth: "180px",
+                                    maxHeight: "180px",
+                                    objectFit: "cover",
+                                    borderRadius: "6px",
+                                    border: "1px solid var(--border)",
+                                    display: "block",
+                                    marginBottom: "4px",
+                                  }}
+                                  onError={(e) => {
+                                    // If file is not an image (e.g. pdf, txt), hide broken image element
+                                    e.target.style.display = "none";
+                                  }}
+                                />
+                                <a
+                                  href={n.AttachmentUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    fontSize: "12px",
+                                    color: "var(--accent)",
+                                    textDecoration: "underline",
+                                  }}
+                                >
+                                  📎 Open {n.Attachment || "Attachment"}
+                                </a>
+                              </div>
+                            )}
+
+                            {n.Attachment && !n.AttachmentUrl && (
                               <span
                                 style={{
                                   display: "inline-block",
@@ -617,13 +691,13 @@ function App() {
                                   color: "var(--accent)",
                                   border: "1px solid var(--accent-border)",
                                   width: "fit-content",
-                                  marginTop: "2px",
                                 }}
                               >
                                 📎 {n.Attachment}
                               </span>
                             )}
                           </div>
+
                           <div
                             style={{
                               display: "flex",
