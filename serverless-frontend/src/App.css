@@ -1,164 +1,441 @@
-/* App.css — clean, minimal UI */
+/* App.css — Rich Minimalist Palette (#17252A, #2B7A78, #3AAFA9, #DEF2F1, #FEFFFF) */
 
-/* ── Tab bar ─────────────────────────────────────────────── */
-.tab-bar {
-  display: flex;
-  gap: 2px;
-  background: var(--border);
-  border-radius: 8px;
-  padding: 3px;
-  margin-bottom: 20px;
-}
-
-.tab {
-  flex: 1;
-  padding: 7px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  font-family: var(--sans);
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  background: transparent;
-  color: var(--text);
-  transition: background 0.15s, color 0.15s;
-}
-
-.tab:hover { background: var(--accent-bg); }
-
-.tab-active {
-  background: var(--bg);
-  color: var(--text-h);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-/* ── Layout ──────────────────────────────────────────── */
+/* ── App Shell & Background ────────────────────────────────────────── */
 .app-shell {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100svh;
-  padding: 24px;
-  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 32px 20px;
+  position: relative;
+  overflow: hidden;
 }
 
+/* Subtle background accent glow */
+.app-shell::before {
+  content: "";
+  position: absolute;
+  width: 480px;
+  height: 480px;
+  background: radial-gradient(circle, rgba(58, 175, 169, 0.22) 0%, rgba(222, 242, 241, 0) 70%);
+  top: -80px;
+  right: -80px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app-shell::after {
+  content: "";
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(43, 122, 120, 0.18) 0%, rgba(222, 242, 241, 0) 70%);
+  bottom: -60px;
+  left: -60px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Main Container Card ─────────────────────────────────────────── */
 .card {
   width: 100%;
-  max-width: 400px;
-  background: var(--bg);
+  max-width: 460px;
+  background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 20px;
   padding: 36px 32px;
   box-shadow: var(--shadow);
+  position: relative;
+  z-index: 1;
+  backdrop-filter: blur(12px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* ── Header ──────────────────────────────────────────── */
+/* ── Brand Header ────────────────────────────────────────────────── */
 .card-header {
-  margin-bottom: 28px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-soft-mint);
+  color: var(--color-deep-teal);
+  border: 1px solid var(--accent-border);
+  border-radius: 9999px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .brand-badge {
+    background: rgba(58, 175, 169, 0.15);
+    color: var(--color-teal);
+  }
 }
 
 .card-header h1 {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 800;
   color: var(--text-h);
-  margin: 0 0 4px;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.03em;
+  margin-bottom: 6px;
 }
 
 .card-header p {
   font-size: 13px;
-  color: var(--text);
-  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
-/* ── Form ────────────────────────────────────────────── */
+/* ── Tab Bar Switcher ────────────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  background: var(--color-soft-mint);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 24px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tab-bar {
+    background: rgba(43, 122, 120, 0.25);
+  }
+}
+
+.tab {
+  flex: 1;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-main);
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-muted);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tab:hover {
+  color: var(--text-h);
+}
+
+.tab-active {
+  background: var(--card-bg);
+  color: var(--color-dark);
+  box-shadow: 0 2px 8px rgba(23, 37, 42, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  .tab-active {
+    background: var(--color-teal);
+    color: var(--color-dark);
+    font-weight: 700;
+  }
+}
+
+/* ── Forms & Input Fields ────────────────────────────────────────── */
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 
 .form-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-deep-teal);
   text-transform: uppercase;
-  letter-spacing: 0.6px;
-  margin: 0 0 4px;
+  letter-spacing: 0.08em;
+  margin: 0 0 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .form-title {
+    color: var(--color-teal);
+  }
 }
 
 .input {
   width: 100%;
-  padding: 10px 12px;
+  padding: 11px 14px;
   font-size: 14px;
-  font-family: var(--sans);
+  font-family: var(--font-main);
   color: var(--text-h);
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   outline: none;
   box-sizing: border-box;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-bg);
+  border-color: var(--color-teal);
+  box-shadow: 0 0 0 3px rgba(58, 175, 169, 0.22);
 }
 
 .input::placeholder {
-  color: var(--text);
-  opacity: 0.6;
+  color: var(--text-muted);
+  opacity: 0.7;
 }
 
-/* ── Buttons ─────────────────────────────────────────── */
+/* Custom file input styling */
+.file-input-wrapper {
+  position: relative;
+  margin-top: 2px;
+}
+
+.input[type="file"] {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  background: rgba(222, 242, 241, 0.4);
+  cursor: pointer;
+}
+
+@media (prefers-color-scheme: dark) {
+  .input[type="file"] {
+    background: rgba(58, 175, 169, 0.08);
+  }
+}
+
+.input[type="file"]::file-selector-button {
+  border: none;
+  background: var(--color-deep-teal);
+  color: var(--color-white);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-family: var(--font-main);
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.input[type="file"]::file-selector-button:hover {
+  background: var(--color-teal);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
 .btn-row {
   display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 10px;
+  margin-top: 6px;
 }
 
 .btn {
-  padding: 9px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
   font-size: 13px;
-  font-weight: 500;
-  font-family: var(--sans);
-  border-radius: 8px;
+  font-weight: 600;
+  font-family: var(--font-main);
+  border-radius: 10px;
   border: none;
   cursor: pointer;
-  transition: opacity 0.15s, box-shadow 0.15s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: -0.01em;
 }
 
-.btn:hover { opacity: 0.88; }
-.btn:active { opacity: 0.75; }
+.btn:active {
+  transform: translateY(1px);
+}
 
 .btn-primary {
   flex: 1;
-  background: var(--accent);
-  color: #fff;
+  background: linear-gradient(135deg, var(--color-teal) 0%, var(--color-deep-teal) 100%);
+  color: var(--color-white);
+  box-shadow: 0 4px 14px rgba(58, 175, 169, 0.3);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #44bcb6 0%, #246866 100%);
+  box-shadow: 0 6px 18px rgba(58, 175, 169, 0.4);
 }
 
 .btn-ghost {
   background: transparent;
-  color: var(--text);
+  color: var(--color-deep-teal);
   border: 1px solid var(--border);
 }
 
-/* ── Status banner ───────────────────────────────────── */
-.status {
-  margin-top: 16px;
-  padding: 9px 12px;
-  border-radius: 8px;
-  font-size: 13px;
+.btn-ghost:hover {
+  background: var(--color-soft-mint);
+  border-color: var(--color-teal);
+  color: var(--color-dark);
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn-ghost {
+    color: var(--color-soft-mint);
+    border-color: var(--border);
+  }
+  .btn-ghost:hover {
+    background: rgba(58, 175, 169, 0.15);
+    color: var(--color-white);
+  }
+}
+
+.btn-danger {
+  color: #e05252;
+  border: 1px solid rgba(224, 82, 82, 0.25);
+  background: transparent;
+}
+
+.btn-danger:hover {
+  background: rgba(224, 82, 82, 0.08);
+  border-color: #e05252;
+}
+
+/* ── Notes List Section ──────────────────────────────────────────── */
+.notes-container {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-light);
+  text-align: left;
+}
+
+.notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.note-item {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.note-item:hover {
+  border-color: var(--color-teal);
+  box-shadow: 0 4px 16px rgba(58, 175, 169, 0.12);
+  transform: translateY(-1px);
+}
+
+.note-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-grow: 1;
+}
+
+.note-text {
+  color: var(--text-h);
+  font-size: 14px;
+  font-weight: 500;
   line-height: 1.5;
-  background: var(--accent-bg);
+  word-break: break-word;
+}
+
+.attachment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--color-soft-mint);
+  color: var(--color-deep-teal);
   border: 1px solid var(--accent-border);
-  color: var(--accent);
+  width: fit-content;
+}
+
+@media (prefers-color-scheme: dark) {
+  .attachment-badge {
+    background: rgba(58, 175, 169, 0.18);
+    color: var(--color-soft-mint);
+  }
+}
+
+.attachment-preview-img {
+  max-width: 190px;
+  max-height: 190px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: block;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.attachment-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-deep-teal);
+  text-decoration: underline;
+}
+
+@media (prefers-color-scheme: dark) {
+  .attachment-link {
+    color: var(--color-teal);
+  }
+}
+
+.attachment-link:hover {
+  color: var(--color-teal);
+}
+
+.note-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+/* ── Status Banner ───────────────────────────────────────────────── */
+.status {
+  margin-top: 18px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  background: rgba(58, 175, 169, 0.12);
+  border: 1px solid rgba(58, 175, 169, 0.35);
+  color: var(--color-deep-teal);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .status {
+    background: rgba(58, 175, 169, 0.15);
+    color: var(--color-teal);
+  }
 }
 
 .status.error {
-  --accent: #e05252;
-  --accent-bg: rgba(224, 82, 82, 0.1);
-  --accent-border: rgba(224, 82, 82, 0.35);
+  background: rgba(224, 82, 82, 0.1);
+  border: 1px solid rgba(224, 82, 82, 0.35);
+  color: #e05252;
 }

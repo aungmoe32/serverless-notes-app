@@ -72,11 +72,14 @@ function App() {
                 AttachmentUrl: linkToStorageFile.url.toString(),
               };
             } catch (err) {
-              console.error(`Failed to get URL for ${noteItem.Attachment}`, err);
+              console.error(
+                `Failed to get URL for ${noteItem.Attachment}`,
+                err,
+              );
             }
           }
           return noteItem;
-        })
+        }),
       );
 
       // 3. Update the UI state
@@ -107,7 +110,7 @@ function App() {
     setStatus("Creating account...");
     try {
       const { nextStep } = await signUp({
-        username: email, // with username_attributes=["email"], email IS the username
+        username: email,
         password,
         options: { userAttributes: { email } },
       });
@@ -161,7 +164,6 @@ function App() {
       }
     } catch (err) {
       if (err.name === "UserAlreadyAuthenticatedException") {
-        // Stale session — sign out and retry once
         try {
           await signOut();
           const { nextStep } = await signIn({ username: email, password });
@@ -237,7 +239,6 @@ function App() {
         await uploadTask.result;
         attachmentKey = file.name;
 
-        // Generate pre-signed URL for immediate UI display
         try {
           const linkToStorageFile = await getUrl({ path: s3Path });
           attachmentUrl = linkToStorageFile.url.toString();
@@ -265,7 +266,7 @@ function App() {
       const response = await restOperation.response;
       const data = await response.body.json();
 
-      setStatus(`Note saved!`);
+      setStatus("Note saved!");
       setNote("");
       setFile(null);
       const fileInput = document.getElementById("file-input");
@@ -290,14 +291,12 @@ function App() {
   const handleUpdateNote = async (noteId) => {
     if (!editNoteText.trim()) return;
 
-    // 1. Optimistic UI Update: Instantly update the note on screen
     setNotesList((prevNotes) =>
       prevNotes.map((n) =>
         n.NoteId === noteId ? { ...n, Note: editNoteText } : n,
       ),
     );
 
-    // Reset editing state
     setEditingNoteId(null);
     setEditNoteText("");
     setStatus("Updating note...");
@@ -325,13 +324,12 @@ function App() {
     } catch (err) {
       console.error(err);
       setStatus(`Failed to update note: ${err.message}`);
-      fetchNotes(); // Re-fetch from DB if it fails to fix the UI
+      fetchNotes();
     }
   };
 
   // ── 7. DELETE NOTE ───────────────────────────────────────────
   const handleDeleteNote = async (noteId) => {
-    // 1. Optimistic UI Update: Remove it from the screen instantly
     setNotesList((prevNotes) => prevNotes.filter((n) => n.NoteId !== noteId));
 
     try {
@@ -380,8 +378,9 @@ function App() {
       <div className="card">
         {/* Header */}
         <div className="card-header">
+          {/* <div className="brand-badge">⚡ Cloud Native Serverless</div> */}
           <h1>Serverless Notes</h1>
-          <p>Secured with AWS Cognito + API Gateway</p>
+          <p>Secured with AWS Cognito, API Gateway &amp; S3</p>
         </div>
 
         {/* Tab bar — only on login / signup views */}
@@ -395,7 +394,7 @@ function App() {
               }}
               type="button"
             >
-              Sign in
+              Sign In
             </button>
             <button
               className={`tab${view === "signup" ? " tab-active" : ""}`}
@@ -405,7 +404,7 @@ function App() {
               }}
               type="button"
             >
-              Sign up
+              Sign Up
             </button>
           </div>
         )}
@@ -433,7 +432,7 @@ function App() {
             </div>
             <div className="btn-row">
               <button className="btn btn-primary" type="submit">
-                Sign in
+                Sign In
               </button>
             </div>
           </form>
@@ -470,7 +469,7 @@ function App() {
             </div>
             <div className="btn-row">
               <button className="btn btn-primary" type="submit">
-                Create account
+                Create Account
               </button>
             </div>
           </form>
@@ -525,7 +524,7 @@ function App() {
             </div>
             <div className="btn-row">
               <button className="btn btn-primary" type="submit">
-                Update &amp; sign in
+                Update &amp; Sign In
               </button>
             </div>
           </form>
@@ -534,7 +533,7 @@ function App() {
         {/* Notes dashboard */}
         {view === "app" && (
           <div>
-            <p className="form-title">New note</p>
+            <p className="form-title">New Note</p>
             <div className="form-group">
               <input
                 className="input"
@@ -548,7 +547,6 @@ function App() {
                 className="input"
                 type="file"
                 onChange={(e) => setFile(e.target.files[0] || null)}
-                style={{ marginTop: "4px" }}
               />
             </div>
             <div className="btn-row">
@@ -556,21 +554,33 @@ function App() {
                 Save to DynamoDB
               </button>
               <button className="btn btn-ghost" onClick={handleSignOut}>
-                Sign out
+                Sign Out
               </button>
             </div>
 
-            <div style={{ marginTop: "24px", textAlign: "left" }}>
-              <p className="form-title">Your Notes</p>
+            <div className="notes-container">
+              <div className="notes-header">
+                <p className="form-title">Your Notes</p>
+                <span
+                  style={{
+                    fontSize: "12px",
+                    color: "var(--text-muted)",
+                    fontWeight: 600,
+                  }}
+                >
+                  {notesList.length} {notesList.length === 1 ? "item" : "items"}
+                </span>
+              </div>
+
               {notesList.length === 0 ? (
                 <p
                   style={{
-                    fontSize: "14px",
-                    color: "var(--text)",
+                    fontSize: "13px",
+                    color: "var(--text-muted)",
                     marginTop: "8px",
                   }}
                 >
-                  No notes found.
+                  No notes found. Create your first note above!
                 </p>
               ) : (
                 <ul
@@ -581,20 +591,7 @@ function App() {
                   }}
                 >
                   {notesList.map((n) => (
-                    <li
-                      key={n.NoteId}
-                      style={{
-                        border: "1px solid var(--border)",
-                        marginBottom: "8px",
-                        padding: "10px 12px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "flex-start",
-                        borderRadius: "8px",
-                        background: "var(--bg)",
-                        fontSize: "14px",
-                      }}
-                    >
+                    <li key={n.NoteId} className="note-item">
                       {editingNoteId === n.NoteId ? (
                         <div
                           style={{
@@ -614,36 +611,22 @@ function App() {
                           <button
                             className="btn btn-primary"
                             onClick={() => handleUpdateNote(n.NoteId)}
-                            style={{ padding: "6px 12px", fontSize: "12px" }}
+                            style={{ padding: "8px 14px", fontSize: "12px" }}
                           >
                             Save
                           </button>
                           <button
                             className="btn btn-ghost"
                             onClick={() => setEditingNoteId(null)}
-                            style={{ padding: "6px 12px", fontSize: "12px" }}
+                            style={{ padding: "8px 14px", fontSize: "12px" }}
                           >
                             Cancel
                           </button>
                         </div>
                       ) : (
                         <>
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "6px",
-                              flexGrow: 1,
-                            }}
-                          >
-                            <span
-                              style={{
-                                color: "var(--text-h)",
-                                wordBreak: "break-word",
-                              }}
-                            >
-                              {n.Note}
-                            </span>
+                          <div className="note-content">
+                            <span className="note-text">{n.Note}</span>
 
                             {/* PRE-SIGNED S3 ATTACHMENT DISPLAY */}
                             {n.AttachmentUrl && (
@@ -651,17 +634,8 @@ function App() {
                                 <img
                                   src={n.AttachmentUrl}
                                   alt="Attachment preview"
-                                  style={{
-                                    maxWidth: "180px",
-                                    maxHeight: "180px",
-                                    objectFit: "cover",
-                                    borderRadius: "6px",
-                                    border: "1px solid var(--border)",
-                                    display: "block",
-                                    marginBottom: "4px",
-                                  }}
+                                  className="attachment-preview-img"
                                   onError={(e) => {
-                                    // If file is not an image (e.g. pdf, txt), hide broken image element
                                     e.target.style.display = "none";
                                   }}
                                 />
@@ -669,11 +643,7 @@ function App() {
                                   href={n.AttachmentUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  style={{
-                                    fontSize: "12px",
-                                    color: "var(--accent)",
-                                    textDecoration: "underline",
-                                  }}
+                                  className="attachment-link"
                                 >
                                   📎 Open {n.Attachment || "Attachment"}
                                 </a>
@@ -681,53 +651,27 @@ function App() {
                             )}
 
                             {n.Attachment && !n.AttachmentUrl && (
-                              <span
-                                style={{
-                                  display: "inline-block",
-                                  fontSize: "11px",
-                                  padding: "2px 6px",
-                                  borderRadius: "4px",
-                                  background: "var(--accent-bg)",
-                                  color: "var(--accent)",
-                                  border: "1px solid var(--accent-border)",
-                                  width: "fit-content",
-                                }}
-                              >
+                              <span className="attachment-badge">
                                 📎 {n.Attachment}
                               </span>
                             )}
                           </div>
 
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "4px",
-                              flexShrink: 0,
-                              marginLeft: "12px",
-                            }}
-                          >
+                          <div className="note-actions">
                             <button
                               className="btn btn-ghost"
                               onClick={() => {
                                 setEditingNoteId(n.NoteId);
                                 setEditNoteText(n.Note);
                               }}
-                              style={{
-                                color: "var(--accent)",
-                                padding: "4px 8px",
-                                fontSize: "12px",
-                              }}
+                              style={{ padding: "5px 10px", fontSize: "12px" }}
                             >
                               Edit
                             </button>
                             <button
-                              className="btn btn-ghost"
+                              className="btn btn-danger"
                               onClick={() => handleDeleteNote(n.NoteId)}
-                              style={{
-                                color: "#e05252",
-                                padding: "4px 8px",
-                                fontSize: "12px",
-                              }}
+                              style={{ padding: "5px 10px", fontSize: "12px" }}
                             >
                               Delete
                             </button>
