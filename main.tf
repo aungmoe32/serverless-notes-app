@@ -206,6 +206,18 @@ resource "aws_ssm_parameter" "client_id" {
   value = aws_cognito_user_pool_client.user_pool_client.id
 }
 
+resource "aws_ssm_parameter" "s3_bucket_name" {
+  name  = "/notesapp/${terraform.workspace}/s3-bucket-name"
+  type  = "String"
+  value = aws_s3_bucket.attachments.bucket
+}
+
+resource "aws_ssm_parameter" "identity_pool_id" {
+  name  = "/notesapp/${terraform.workspace}/identity-pool-id"
+  type  = "String"
+  value = aws_cognito_identity_pool.identity_pool.id
+}
+
 # --- AMPLIFY IAM ROLE ---
 
 resource "aws_iam_role" "amplify_service_role" {
