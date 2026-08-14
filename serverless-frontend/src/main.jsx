@@ -12,7 +12,7 @@ Amplify.configure({
     Cognito: {
       userPoolId: import.meta.env.VITE_USER_POOL_ID,
       userPoolClientId: import.meta.env.VITE_USER_POOL_CLIENT_ID,
-      // We don't have an Identity Pool yet, so we leave it out
+      identityPoolId: import.meta.env.VITE_IDENTITY_POOL_ID,
     },
   },
   API: {
@@ -21,6 +21,12 @@ Amplify.configure({
         endpoint: import.meta.env.VITE_API_ENDPOINT,
         region: import.meta.env.VITE_AWS_REGION,
       },
+    },
+  },
+  Storage: {
+    S3: {
+      bucket: import.meta.env.VITE_S3_BUCKET_NAME,
+      region: import.meta.env.VITE_AWS_REGION,
     },
   },
 });

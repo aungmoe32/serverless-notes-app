@@ -36,19 +36,24 @@ def lambda_handler(event, context):
         if http_method == 'POST':
             body = json.loads(event.get('body', '{}'))
             note_content = body.get('Note')
+            attachment = body.get('Attachment')
 
             if not note_content:
                 return {"statusCode": 400, "body": json.dumps("Note content is required.")}
 
             note_id = str(uuid.uuid4())
+            item = {'UserId': user_id, 'NoteId': note_id, 'Note': note_content}
+            if attachment:
+                item['Attachment'] = attachment
+
             table.put_item(
-                Item={'UserId': user_id, 'NoteId': note_id, 'Note': note_content}
+                Item=item
             )
             logger.info(json.dumps({"message": "Note created successfully", "user_id": user_id, "note_id": note_id}))
             return {
                 'statusCode': 201,
                 'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({'NoteId': note_id, 'Note': note_content, 'Message': 'Successfully saved note'})
+                'body': json.dumps({'NoteId': note_id, 'Note': note_content, 'Attachment': attachment, 'Message': 'Successfully saved note'})
             }
 
         # READ NOTES (GET)

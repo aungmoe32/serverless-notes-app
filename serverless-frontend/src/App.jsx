@@ -9,6 +9,7 @@ import {
   fetchAuthSession,
 } from "aws-amplify/auth";
 import { post, get, del, put } from "aws-amplify/api";
+import { uploadData } from "aws-amplify/storage";
 import "./App.css";
 
 // View state machine:
@@ -31,6 +32,7 @@ function App() {
 
   // App
   const [note, setNote] = useState("");
+  const [file, setFile] = useState(null);
   const [notesList, setNotesList] = useState([]);
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editNoteText, setEditNoteText] = useState("");
@@ -82,7 +84,7 @@ function App() {
     setStatus("Creating account...");
     try {
       const { nextStep } = await signUp({
-        username: email,   // with username_attributes=["email"], email IS the username
+        username: email, // with username_attributes=["email"], email IS the username
         password,
         options: { userAttributes: { email } },
       });
@@ -141,8 +143,7 @@ function App() {
           await signOut();
           const { nextStep } = await signIn({ username: email, password });
           if (
-            nextStep.signInStep ===
-            "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED"
+            nextStep.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED"
           ) {
             setView("newPassword");
             setStatus(
@@ -188,7 +189,7 @@ function App() {
       setStatus("Error: Note cannot be empty.");
       return;
     }
-    setStatus("Saving note...");
+    setStatus("Saving...");
     try {
       const session = await fetchAuthSession();
       if (!session.tokens?.idToken) {
@@ -196,6 +197,25 @@ function App() {
         setView("login");
         return;
       }
+
+      let attachmentKey = null;
+
+      // --- DIRECT S3 UPLOAD ---
+      if (file) {
+        setStatus("Uploading file directly to S3...");
+        const s3Path = `private/${session.identityId}/${file.name}`;
+
+        const uploadTask = uploadData({
+          path: s3Path,
+          data: file,
+        });
+
+        await uploadTask.result;
+        attachmentKey = file.name;
+      }
+
+      // --- SAVE NOTE TO DYNAMODB ---
+      setStatus("Saving note to database...");
       const token = session.tokens.idToken.toString();
 
       const restOperation = post({
@@ -203,19 +223,29 @@ function App() {
         path: "/notes",
         options: {
           headers: { Authorization: token },
-          body: { Note: note },
+          body: {
+            Note: note,
+            Attachment: attachmentKey,
+          },
         },
       });
 
       const response = await restOperation.response;
       const data = await response.body.json();
 
-      setStatus(`Note saved! ID: ${data.NoteId}`);
-      setNotesList((prev) => [...prev, { NoteId: data.NoteId, Note: note }]);
+      setStatus(`Note saved!`);
       setNote("");
+      setFile(null);
+      const fileInput = document.getElementById("file-input");
+      if (fileInput) fileInput.value = "";
+
+      setNotesList((prev) => [
+        ...prev,
+        { NoteId: data.NoteId, Note: note, Attachment: attachmentKey },
+      ]);
     } catch (err) {
       console.error(err);
-      setStatus(`Failed to save note: ${err.message}`);
+      setStatus(`Failed: ${err.message}`);
     }
   };
 
@@ -298,6 +328,9 @@ function App() {
     setEmail("");
     setPassword("");
     setNote("");
+    setFile(null);
+    const fileInput = document.getElementById("file-input");
+    if (fileInput) fileInput.value = "";
     setNotesList([]);
     setEditingNoteId(null);
     setEditNoteText("");
@@ -319,14 +352,20 @@ function App() {
           <div className="tab-bar">
             <button
               className={`tab${view === "login" ? " tab-active" : ""}`}
-              onClick={() => { setView("login"); setStatus(""); }}
+              onClick={() => {
+                setView("login");
+                setStatus("");
+              }}
               type="button"
             >
               Sign in
             </button>
             <button
               className={`tab${view === "signup" ? " tab-active" : ""}`}
-              onClick={() => { setView("signup"); setStatus(""); }}
+              onClick={() => {
+                setView("signup");
+                setStatus("");
+              }}
               type="button"
             >
               Sign up
@@ -422,7 +461,10 @@ function App() {
               <button
                 className="btn btn-ghost"
                 type="button"
-                onClick={() => { setView("login"); setStatus(""); }}
+                onClick={() => {
+                  setView("login");
+                  setStatus("");
+                }}
               >
                 Back
               </button>
@@ -464,6 +506,13 @@ function App() {
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
               />
+              <input
+                id="file-input"
+                className="input"
+                type="file"
+                onChange={(e) => setFile(e.target.files[0] || null)}
+                style={{ marginTop: "4px" }}
+              />
             </div>
             <div className="btn-row">
               <button className="btn btn-primary" onClick={handleSaveNote}>
@@ -477,9 +526,23 @@ function App() {
             <div style={{ marginTop: "24px", textAlign: "left" }}>
               <p className="form-title">Your Notes</p>
               {notesList.length === 0 ? (
-                <p style={{ fontSize: "14px", color: "var(--text)", marginTop: "8px" }}>No notes found.</p>
+                <p
+                  style={{
+                    fontSize: "14px",
+                    color: "var(--text)",
+                    marginTop: "8px",
+                  }}
+                >
+                  No notes found.
+                </p>
               ) : (
-                <ul style={{ listStyleType: "none", padding: 0, margin: "8px 0 0 0" }}>
+                <ul
+                  style={{
+                    listStyleType: "none",
+                    padding: 0,
+                    margin: "8px 0 0 0",
+                  }}
+                >
                   {notesList.map((n) => (
                     <li
                       key={n.NoteId}
@@ -492,11 +555,18 @@ function App() {
                         alignItems: "center",
                         borderRadius: "8px",
                         background: "var(--bg)",
-                        fontSize: "14px"
+                        fontSize: "14px",
                       }}
                     >
                       {editingNoteId === n.NoteId ? (
-                        <div style={{ display: "flex", width: "100%", gap: "8px", alignItems: "center" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            width: "100%",
+                            gap: "8px",
+                            alignItems: "center",
+                          }}
+                        >
                           <input
                             className="input"
                             type="text"
@@ -521,22 +591,69 @@ function App() {
                         </div>
                       ) : (
                         <>
-                          <span style={{ color: "var(--text-h)", wordBreak: "break-word" }}>{n.Note}</span>
-                          <div style={{ display: "flex", gap: "4px", flexShrink: 0, marginLeft: "12px" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "2px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                color: "var(--text-h)",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {n.Note}
+                            </span>
+                            {n.Attachment && (
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  fontSize: "11px",
+                                  padding: "2px 6px",
+                                  borderRadius: "4px",
+                                  background: "var(--accent-bg)",
+                                  color: "var(--accent)",
+                                  border: "1px solid var(--accent-border)",
+                                  width: "fit-content",
+                                  marginTop: "2px",
+                                }}
+                              >
+                                📎 {n.Attachment}
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "4px",
+                              flexShrink: 0,
+                              marginLeft: "12px",
+                            }}
+                          >
                             <button
                               className="btn btn-ghost"
                               onClick={() => {
                                 setEditingNoteId(n.NoteId);
                                 setEditNoteText(n.Note);
                               }}
-                              style={{ color: "var(--accent)", padding: "4px 8px", fontSize: "12px" }}
+                              style={{
+                                color: "var(--accent)",
+                                padding: "4px 8px",
+                                fontSize: "12px",
+                              }}
                             >
                               Edit
                             </button>
                             <button
                               className="btn btn-ghost"
                               onClick={() => handleDeleteNote(n.NoteId)}
-                              style={{ color: "#e05252", padding: "4px 8px", fontSize: "12px" }}
+                              style={{
+                                color: "#e05252",
+                                padding: "4px 8px",
+                                fontSize: "12px",
+                              }}
                             >
                               Delete
                             </button>
