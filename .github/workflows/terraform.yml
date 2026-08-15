@@ -92,7 +92,7 @@ jobs:
         # ONLY run apply if we are pushing/merging into the main branch
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
-          TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
+          TF_VAR_github_token: ${{ secrets.TF_VAR_GITHUB_TOKEN }}
         run: terraform apply -auto-approve
 
       # Trigger Amplify after infrastructure is fully deployed
