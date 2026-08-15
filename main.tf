@@ -360,7 +360,7 @@ resource "local_file" "frontend_env" {
 resource "aws_amplify_app" "frontend" {
   count      = terraform.workspace != "dev" ? 1 : 0
   name       = "NotesAppFrontend-${terraform.workspace}"
-  repository = "https://github.com/aungmoemyintthu/serverless-notes-app"
+  repository = "https://github.com/aungmoe32/serverless-notes-app"
 
   # The GitHub token to connect the repo
   access_token = var.github_token
