@@ -354,3 +354,66 @@ resource "local_file" "frontend_env" {
     VITE_API_ENDPOINT="${aws_apigatewayv2_api.http_api.api_endpoint}"
   EOT
 }
+
+# --- AMPLIFY HOSTING (FRONTEND CI/CD) ---
+
+resource "aws_amplify_app" "frontend" {
+  count      = terraform.workspace != "dev" ? 1 : 0
+  name       = "NotesAppFrontend-${terraform.workspace}"
+  repository = "https://github.com/aungmoemyintthu/serverless-notes-app"
+
+  # The GitHub token to connect the repo
+  access_token = var.github_token
+
+  # The IAM Role we created earlier so Amplify can read SSM Parameters
+  iam_service_role_arn = aws_iam_role.amplify_service_role.arn
+
+  # The SPA Redirect Rule (Fixes React Router 404 errors)
+  custom_rule {
+    source = "</^[^.]+$|\\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>"
+    status = "200"
+    target = "/index.html"
+  }
+
+  # The build script injected via code
+  build_spec = <<-EOT
+    version: 1
+    applications:
+      - frontend:
+          phases:
+            preBuild:
+              commands:
+                - npm install -g pnpm
+                - pnpm install --frozen-lockfile
+                - echo "Fetching backend variables from AWS SSM..."
+                - echo "VITE_AWS_REGION=${var.aws_region}" >> .env
+                - echo "VITE_API_ENDPOINT=$(aws ssm get-parameter --name '/notesapp/${terraform.workspace}/api-endpoint' --query 'Parameter.Value' --output text)" >> .env
+                - echo "VITE_USER_POOL_ID=$(aws ssm get-parameter --name '/notesapp/${terraform.workspace}/user-pool-id' --query 'Parameter.Value' --output text)" >> .env
+                - echo "VITE_USER_POOL_CLIENT_ID=$(aws ssm get-parameter --name '/notesapp/${terraform.workspace}/client-id' --query 'Parameter.Value' --output text)" >> .env
+                - echo "VITE_S3_BUCKET_NAME=$(aws ssm get-parameter --name '/notesapp/${terraform.workspace}/s3-bucket-name' --query 'Parameter.Value' --output text)" >> .env
+                - echo "VITE_IDENTITY_POOL_ID=$(aws ssm get-parameter --name '/notesapp/${terraform.workspace}/identity-pool-id' --query 'Parameter.Value' --output text)" >> .env
+            build:
+              commands:
+                - pnpm run build
+          artifacts:
+            baseDirectory: dist
+            files:
+              - '**/*'
+          cache:
+            paths:
+              - node_modules/**/*
+              - ~/.local/share/pnpm/store/**/*
+        appRoot: serverless-frontend
+  EOT
+}
+
+# Map the GitHub branch to the Amplify App
+resource "aws_amplify_branch" "main" {
+  count       = terraform.workspace != "dev" ? 1 : 0
+  app_id      = aws_amplify_app.frontend[0].id
+  branch_name = "main"
+
+  # We set this to false because our GitHub Actions
+  # pipeline triggers Amplify after Terraform finishes
+  enable_auto_build = false
+}

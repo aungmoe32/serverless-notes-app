@@ -3,3 +3,10 @@ variable "aws_region" {
   type        = string
   default     = "us-east-1"
 }
+
+variable "github_token" {
+  description = "GitHub Personal Access Token for Amplify"
+  type        = string
+  sensitive   = true
+  default     = null
+}

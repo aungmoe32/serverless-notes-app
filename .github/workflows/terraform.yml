@@ -91,13 +91,16 @@ jobs:
       - name: Terraform Apply
         # ONLY run apply if we are pushing/merging into the main branch
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
         run: terraform apply -auto-approve
 
-      # NEW: Trigger Amplify after infrastructure is fully deployed
+      # Trigger Amplify after infrastructure is fully deployed
       - name: Trigger Amplify Frontend Build
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
+          APP_ID=$(terraform output -raw amplify_app_id)
           aws amplify start-job \
-            --app-id dlhivw2bb6g0l \
+            --app-id $APP_ID \
             --branch-name main \
             --job-type RELEASE

@@ -23,3 +23,8 @@ output "s3_bucket_name" {
   description = "The S3 Bucket name for file attachments"
   value       = aws_s3_bucket.attachments.bucket
 }
+
+output "amplify_app_id" {
+  description = "The ID of the Amplify App"
+  value       = terraform.workspace == "default" ? aws_amplify_app.frontend[0].id : "Not created in dev workspace"
+}
