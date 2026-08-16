@@ -1,19 +1,14 @@
-# 2. Create the DynamoDB Table
-resource "aws_dynamodb_table" "notes_table" {
-  name         = "NotesTable-${terraform.workspace}"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "UserId"
-  range_key    = "NoteId"
+# 1. Call the Database Module
+module "database" {
+  source = "./modules/database"
+  env    = terraform.workspace
+}
 
-  attribute {
-    name = "UserId"
-    type = "S"
-  }
-
-  attribute {
-    name = "NoteId"
-    type = "S"
-  }
+# 2. STATE REFACTORING: Prevent Data Loss!
+# This tells Terraform: "The table still exists, its code just moved."
+moved {
+  from = aws_dynamodb_table.notes_table
+  to   = module.database.aws_dynamodb_table.notes_table
 }
 
 # 3. Create the IAM Role for Lambda
@@ -63,7 +58,7 @@ resource "aws_lambda_function" "create_note_function" {
 
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.notes_table.name
+      TABLE_NAME = module.database.table_name
     }
   }
 }
