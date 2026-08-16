@@ -15,10 +15,27 @@ resource "aws_iam_role" "lambda_exec_role" {
   })
 }
 
-# 4. Attach DynamoDB Access to the Lambda Role
-resource "aws_iam_role_policy_attachment" "lambda_dynamodb_access" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+# 4. Attach Strict Least-Privilege DynamoDB Policy to the Lambda Role
+resource "aws_iam_role_policy" "lambda_strict_dynamodb" {
+  name = "LambdaStrictDynamoDBAccess"
+  role = aws_iam_role.lambda_exec_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query"
+        ]
+        Resource = var.table_arn
+      }
+    ]
+  })
 }
 
 # Attach Basic Execution Role (Allows Lambda to write logs to CloudWatch)
@@ -36,7 +53,7 @@ data "archive_file" "lambda_zip" {
 
 # 6. Create the Lambda Function
 resource "aws_lambda_function" "create_note_function" {
-  filename      = "lambda_function.zip"
+  filename      = data.archive_file.lambda_zip.output_path
   function_name = "CreateNoteFunction-${var.env}"
   role          = aws_iam_role.lambda_exec_role.arn
   handler       = "lambda_function.lambda_handler"

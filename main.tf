@@ -93,10 +93,6 @@ moved {
   to   = module.api.aws_iam_role_policy_attachment.lambda_basic_execution
 }
 moved {
-  from = aws_iam_role_policy_attachment.lambda_dynamodb_access
-  to   = module.api.aws_iam_role_policy_attachment.lambda_dynamodb_access
-}
-moved {
   from = aws_lambda_function.create_note_function
   to   = module.api.aws_lambda_function.create_note_function
 }
