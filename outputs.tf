@@ -16,12 +16,12 @@ output "api_gateway_url" {
 
 output "identity_pool_id" {
   description = "The ID of the Cognito Identity Pool"
-  value       = aws_cognito_identity_pool.identity_pool.id
+  value       = module.storage.identity_pool_id
 }
 
 output "s3_bucket_name" {
   description = "The S3 Bucket name for file attachments"
-  value       = aws_s3_bucket.attachments.bucket
+  value       = module.storage.bucket_name
 }
 
 output "amplify_app_id" {
