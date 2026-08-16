@@ -11,7 +11,7 @@ output "cognito_client_id" {
 
 output "api_gateway_url" {
   description = "The base URL of the API Gateway (For Amplify endpoint)"
-  value       = aws_apigatewayv2_api.http_api.api_endpoint
+  value       = module.api.api_endpoint
 }
 
 output "identity_pool_id" {

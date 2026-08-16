@@ -68,151 +68,82 @@ moved {
   to   = module.storage.aws_cognito_identity_pool_roles_attachment.main
 }
 
-# 3. Create the IAM Role for Lambda
-resource "aws_iam_role" "lambda_exec_role" {
-  name = "create_note_lambda_role_${terraform.workspace}"
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      }
-    }]
-  })
+# 4. Call the API Module
+module "api" {
+  source = "./modules/api"
+  env    = terraform.workspace
+
+  # Data from Database Module
+  table_name = module.database.table_name
+  table_arn  = module.database.table_arn
+
+  # Data from Auth Module
+  client_id          = module.auth.client_id
+  user_pool_endpoint = module.auth.user_pool_endpoint
 }
 
-# 4. Attach DynamoDB Access to the Lambda Role
-resource "aws_iam_role_policy_attachment" "lambda_dynamodb_access" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+# STATE REFACTORING: Protect Compute and Routing
+moved {
+  from = aws_iam_role.lambda_exec_role
+  to   = module.api.aws_iam_role.lambda_exec_role
+}
+moved {
+  from = aws_iam_role_policy_attachment.lambda_basic_execution
+  to   = module.api.aws_iam_role_policy_attachment.lambda_basic_execution
+}
+moved {
+  from = aws_iam_role_policy_attachment.lambda_dynamodb_access
+  to   = module.api.aws_iam_role_policy_attachment.lambda_dynamodb_access
+}
+moved {
+  from = aws_lambda_function.create_note_function
+  to   = module.api.aws_lambda_function.create_note_function
+}
+moved {
+  from = aws_apigatewayv2_api.http_api
+  to   = module.api.aws_apigatewayv2_api.http_api
+}
+moved {
+  from = aws_apigatewayv2_integration.lambda_integration
+  to   = module.api.aws_apigatewayv2_integration.lambda_integration
+}
+moved {
+  from = aws_apigatewayv2_route.post_route
+  to   = module.api.aws_apigatewayv2_route.post_route
+}
+moved {
+  from = aws_apigatewayv2_route.get_route
+  to   = module.api.aws_apigatewayv2_route.get_route
+}
+moved {
+  from = aws_apigatewayv2_route.put_route
+  to   = module.api.aws_apigatewayv2_route.put_route
+}
+moved {
+  from = aws_apigatewayv2_route.delete_route
+  to   = module.api.aws_apigatewayv2_route.delete_route
+}
+moved {
+  from = aws_apigatewayv2_stage.default_stage
+  to   = module.api.aws_apigatewayv2_stage.default_stage
+}
+moved {
+  from = aws_lambda_permission.api_gw_permission
+  to   = module.api.aws_lambda_permission.api_gw_permission
+}
+moved {
+  from = aws_apigatewayv2_authorizer.cognito_authorizer
+  to   = module.api.aws_apigatewayv2_authorizer.cognito_authorizer
 }
 
-# Attach Basic Execution Role (Allows Lambda to write logs to CloudWatch)
-resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# 5. Zip the Python Code
-data "archive_file" "lambda_zip" {
-  type        = "zip"
-  source_file = "lambda_function.py"
-  output_path = "lambda_function.zip"
-}
-
-# 6. Create the Lambda Function
-resource "aws_lambda_function" "create_note_function" {
-  filename      = "lambda_function.zip"
-  function_name = "CreateNoteFunction-${terraform.workspace}"
-  role          = aws_iam_role.lambda_exec_role.arn
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.12"
-
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-
-  environment {
-    variables = {
-      TABLE_NAME = module.database.table_name
-    }
-  }
-}
-
-# 7. Create the HTTP API Gateway
-resource "aws_apigatewayv2_api" "http_api" {
-  name          = "NotesAPI-${terraform.workspace}"
-  protocol_type = "HTTP"
-
-  cors_configuration {
-    allow_origins = ["*"]
-    allow_methods = ["POST", "GET", "DELETE", "PUT", "OPTIONS"]
-    allow_headers = ["Content-Type", "Authorization"]
-    max_age       = 300
-  }
-}
-
-# 8. Connect API Gateway to Lambda (Integration)
-resource "aws_apigatewayv2_integration" "lambda_integration" {
-  api_id           = aws_apigatewayv2_api.http_api.id
-  integration_type = "AWS_PROXY"
-  integration_uri  = aws_lambda_function.create_note_function.invoke_arn
-}
-
-# 9. Create the Route (POST /notes)
-resource "aws_apigatewayv2_route" "post_route" {
-  api_id             = aws_apigatewayv2_api.http_api.id
-  route_key          = "POST /notes"
-  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.cognito_authorizer.id
-}
-
-# 9b. Create the Route (GET /notes)
-resource "aws_apigatewayv2_route" "get_route" {
-  api_id             = aws_apigatewayv2_api.http_api.id
-  route_key          = "GET /notes"
-  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.cognito_authorizer.id
-}
-
-# 9c. Create the Route (DELETE /notes/{id})
-resource "aws_apigatewayv2_route" "delete_route" {
-  api_id             = aws_apigatewayv2_api.http_api.id
-  route_key          = "DELETE /notes/{id}"
-  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.cognito_authorizer.id
-}
-
-# 9d. Create the Route (PUT /notes/{id})
-resource "aws_apigatewayv2_route" "put_route" {
-  api_id             = aws_apigatewayv2_api.http_api.id
-  route_key          = "PUT /notes/{id}"
-  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.cognito_authorizer.id
-}
-
-# 10. Deploy the API Gateway Stage
-resource "aws_apigatewayv2_stage" "default_stage" {
-  api_id      = aws_apigatewayv2_api.http_api.id
-  name        = "$default"
-  auto_deploy = true
-}
-
-# 11. Give API Gateway permission to trigger the Lambda function
-resource "aws_lambda_permission" "api_gw_permission" {
-  statement_id  = "AllowExecutionFromAPIGateway"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.create_note_function.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
-}
-
-
-
-# 14. Create the API Gateway Authorizer (The Bouncer)
-resource "aws_apigatewayv2_authorizer" "cognito_authorizer" {
-  api_id           = aws_apigatewayv2_api.http_api.id
-  authorizer_type  = "JWT"
-  identity_sources = ["$request.header.Authorization"]
-  name             = "CognitoJWTAuthorizer-${terraform.workspace}"
-
-  jwt_configuration {
-    audience = [module.auth.client_id]
-    issuer   = "https://${module.auth.user_pool_endpoint}"
-  }
-}
 
 # --- SSM PARAMETER STORE (THE BRIDGE) ---
 
 resource "aws_ssm_parameter" "api_endpoint" {
   name  = "/notesapp/${terraform.workspace}/api-endpoint"
   type  = "String"
-  value = aws_apigatewayv2_api.http_api.api_endpoint
+  value = module.api.api_endpoint
 }
 
 resource "aws_ssm_parameter" "user_pool_id" {
@@ -286,7 +217,7 @@ resource "local_file" "frontend_env" {
     VITE_USER_POOL_CLIENT_ID="${module.auth.client_id}"
     VITE_IDENTITY_POOL_ID="${module.storage.identity_pool_id}"
     VITE_S3_BUCKET_NAME="${module.storage.bucket_name}"
-    VITE_API_ENDPOINT="${aws_apigatewayv2_api.http_api.api_endpoint}"
+    VITE_API_ENDPOINT="${module.api.api_endpoint}"
   EOT
 }
 
