@@ -11,6 +11,22 @@ moved {
   to   = module.database.aws_dynamodb_table.notes_table
 }
 
+# 2. Call the Auth Module
+module "auth" {
+  source = "./modules/auth"
+  env    = terraform.workspace
+}
+
+# STATE REFACTORING: Protect the Cognito Database!
+moved {
+  from = aws_cognito_user_pool.user_pool
+  to   = module.auth.aws_cognito_user_pool.user_pool
+}
+
+moved {
+  from = aws_cognito_user_pool_client.user_pool_client
+  to   = module.auth.aws_cognito_user_pool_client.user_pool_client
+}
 # 3. Create the IAM Role for Lambda
 resource "aws_iam_role" "lambda_exec_role" {
   name = "create_note_lambda_role_${terraform.workspace}"
@@ -135,38 +151,7 @@ resource "aws_lambda_permission" "api_gw_permission" {
   source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
 }
 
-# 12. Create the Cognito User Pool (The User Directory)
-resource "aws_cognito_user_pool" "user_pool" {
-  name = "NotesAppUsers-${terraform.workspace}"
 
-  # Email IS the username — prevents duplicate accounts at sign-up time
-  # (alias_attributes allows duplicates until confirmation; username_attributes does not)
-  username_attributes      = ["email"]
-  auto_verified_attributes = ["email"]
-
-  password_policy {
-    minimum_length    = 8
-    require_lowercase = true
-    require_numbers   = true
-    require_symbols   = false
-    require_uppercase = true
-  }
-}
-
-# 13. Create the Cognito App Client (For the Frontend to talk to)
-resource "aws_cognito_user_pool_client" "user_pool_client" {
-  name         = "NotesAppFrontendClient-${terraform.workspace}"
-  user_pool_id = aws_cognito_user_pool.user_pool.id
-
-  # We set this to false because web browsers (JavaScript) cannot securely hide secrets
-  generate_secret = false
-
-  explicit_auth_flows = [
-    "ALLOW_USER_PASSWORD_AUTH",
-    "ALLOW_USER_SRP_AUTH",
-    "ALLOW_REFRESH_TOKEN_AUTH"
-  ]
-}
 
 # 14. Create the API Gateway Authorizer (The Bouncer)
 resource "aws_apigatewayv2_authorizer" "cognito_authorizer" {
@@ -176,8 +161,8 @@ resource "aws_apigatewayv2_authorizer" "cognito_authorizer" {
   name             = "CognitoJWTAuthorizer-${terraform.workspace}"
 
   jwt_configuration {
-    audience = [aws_cognito_user_pool_client.user_pool_client.id]
-    issuer   = "https://${aws_cognito_user_pool.user_pool.endpoint}"
+    audience = [module.auth.client_id]
+    issuer   = "https://${module.auth.user_pool_endpoint}"
   }
 }
 
@@ -192,13 +177,13 @@ resource "aws_ssm_parameter" "api_endpoint" {
 resource "aws_ssm_parameter" "user_pool_id" {
   name  = "/notesapp/${terraform.workspace}/user-pool-id"
   type  = "String"
-  value = aws_cognito_user_pool.user_pool.id
+  value = module.auth.user_pool_id
 }
 
 resource "aws_ssm_parameter" "client_id" {
   name  = "/notesapp/${terraform.workspace}/client-id"
   type  = "String"
-  value = aws_cognito_user_pool_client.user_pool_client.id
+  value = module.auth.client_id
 }
 
 resource "aws_ssm_parameter" "s3_bucket_name" {
@@ -278,8 +263,8 @@ resource "aws_cognito_identity_pool" "identity_pool" {
   allow_unauthenticated_identities = false # We only allow logged-in users
 
   cognito_identity_providers {
-    client_id               = aws_cognito_user_pool_client.user_pool_client.id
-    provider_name           = aws_cognito_user_pool.user_pool.endpoint
+    client_id               = module.auth.client_id
+    provider_name           = module.auth.user_pool_endpoint
     server_side_token_check = false
   }
 }
@@ -342,8 +327,8 @@ resource "local_file" "frontend_env" {
   filename = "${path.module}/serverless-frontend/.env.local"
   content  = <<-EOT
     VITE_AWS_REGION="${var.aws_region}"
-    VITE_USER_POOL_ID="${aws_cognito_user_pool.user_pool.id}"
-    VITE_USER_POOL_CLIENT_ID="${aws_cognito_user_pool_client.user_pool_client.id}"
+    VITE_USER_POOL_ID="${module.auth.user_pool_id}"
+    VITE_USER_POOL_CLIENT_ID="${module.auth.client_id}"
     VITE_IDENTITY_POOL_ID="${aws_cognito_identity_pool.identity_pool.id}"
     VITE_S3_BUCKET_NAME="${aws_s3_bucket.attachments.bucket}"
     VITE_API_ENDPOINT="${aws_apigatewayv2_api.http_api.api_endpoint}"

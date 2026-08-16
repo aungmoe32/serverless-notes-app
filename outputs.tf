@@ -1,12 +1,12 @@
 
 output "cognito_user_pool_id" {
   description = "The ID of the Cognito User Pool (For Amplify userPoolId)"
-  value       = aws_cognito_user_pool.user_pool.id
+  value       = module.auth.user_pool_id
 }
 
 output "cognito_client_id" {
   description = "The ID of the Cognito App Client (For Amplify userPoolClientId)"
-  value       = aws_cognito_user_pool_client.user_pool_client.id
+  value       = module.auth.client_id
 }
 
 output "api_gateway_url" {
