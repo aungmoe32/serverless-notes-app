@@ -38,6 +38,12 @@ resource "aws_iam_role_policy" "lambda_strict_dynamodb" {
   })
 }
 
+# Grant Lambda permission to send Trace Data to X-Ray
+resource "aws_iam_role_policy_attachment" "lambda_xray_access" {
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess"
+}
+
 # Attach Basic Execution Role (Allows Lambda to write logs to CloudWatch)
 resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
   role       = aws_iam_role.lambda_exec_role.name
@@ -59,11 +65,20 @@ resource "aws_lambda_function" "create_note_function" {
   handler       = "lambda_function.lambda_handler"
   runtime       = "python3.12"
 
+  tracing_config {
+    mode = "Active"
+  }
+
+  layers = ["arn:aws:lambda:us-east-1:017000801446:layer:AWSLambdaPowertoolsPythonV2:77"]
+
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
   environment {
     variables = {
-      TABLE_NAME = var.table_name
+      TABLE_NAME                   = var.table_name
+      POWERTOOLS_SERVICE_NAME      = "NotesAPI"
+      POWERTOOLS_METRICS_NAMESPACE = "NotesApp"
+      LOG_LEVEL                    = "INFO"
     }
   }
 }
@@ -83,9 +98,10 @@ resource "aws_apigatewayv2_api" "http_api" {
 
 # 8. Connect API Gateway to Lambda (Integration)
 resource "aws_apigatewayv2_integration" "lambda_integration" {
-  api_id           = aws_apigatewayv2_api.http_api.id
-  integration_type = "AWS_PROXY"
-  integration_uri  = aws_lambda_function.create_note_function.invoke_arn
+  api_id                 = aws_apigatewayv2_api.http_api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.create_note_function.invoke_arn
+  payload_format_version = "2.0"
 }
 
 # 9. Create the Route (POST /notes)
