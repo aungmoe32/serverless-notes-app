@@ -42,30 +42,40 @@ module "api" {
 # --- SSM PARAMETER STORE (THE BRIDGE) ---
 
 resource "aws_ssm_parameter" "api_endpoint" {
+  #checkov:skip=CKV2_AWS_34:This parameter does not contain sensitive data.
+
   name  = "/notesapp/${terraform.workspace}/api-endpoint"
   type  = "String"
   value = module.api.api_endpoint
 }
 
 resource "aws_ssm_parameter" "user_pool_id" {
+  #checkov:skip=CKV2_AWS_34:This parameter does not contain sensitive data.
+
   name  = "/notesapp/${terraform.workspace}/user-pool-id"
   type  = "String"
   value = module.auth.user_pool_id
 }
 
 resource "aws_ssm_parameter" "client_id" {
+  #checkov:skip=CKV2_AWS_34:This parameter does not contain sensitive data.
+
   name  = "/notesapp/${terraform.workspace}/client-id"
   type  = "String"
   value = module.auth.client_id
 }
 
 resource "aws_ssm_parameter" "s3_bucket_name" {
+  #checkov:skip=CKV2_AWS_34:This parameter does not contain sensitive data.
+
   name  = "/notesapp/${terraform.workspace}/s3-bucket-name"
   type  = "String"
   value = module.storage.bucket_name
 }
 
 resource "aws_ssm_parameter" "identity_pool_id" {
+  #checkov:skip=CKV2_AWS_34:This parameter does not contain sensitive data.
+
   name  = "/notesapp/${terraform.workspace}/identity-pool-id"
   type  = "String"
   value = module.storage.identity_pool_id
