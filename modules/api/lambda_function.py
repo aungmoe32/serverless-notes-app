@@ -1,118 +1,105 @@
-import json
 import boto3
 import uuid
 import os
-import logging
 from boto3.dynamodb.conditions import Key
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+from aws_lambda_powertools import Logger, Tracer, Metrics
+from aws_lambda_powertools.event_handler import APIGatewayHttpResolver
+from aws_lambda_powertools.event_handler.exceptions import UnauthorizedError, BadRequestError
+
+tracer = Tracer()
+logger = Logger()
+metrics = Metrics()
+app = APIGatewayHttpResolver()
 
 TABLE_NAME = os.environ.get('TABLE_NAME', 'NotesTable')
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table(TABLE_NAME)
 
+def get_user_id():
+    """Extracts the secure sub UUID from the injected JWT token"""
+    # Use the raw_event dictionary to bypass strict object typing conflicts
+    authorizer = app.current_event.raw_event.get('requestContext', {}).get('authorizer', {})
+    
+    # In Payload Format 2.0, HTTP API JWT claims are nested under 'jwt'
+    jwt_claims = authorizer.get('jwt', {}).get('claims', {})
+        
+    user_id = jwt_claims.get('sub')
+    if not user_id:
+        raise UnauthorizedError("Missing sub claim in Token")
+    
+    return user_id
+
+@app.post("/notes")
+@tracer.capture_method
+def create_note():
+    user_id = get_user_id()
+    body = app.current_event.json_body  # Powertools automatically parses the JSON!
+    
+    note_content = body.get('Note')
+    if not note_content:
+        raise BadRequestError("Note content is required.")
+        
+    note_id = str(uuid.uuid4())
+    attachment = body.get('Attachment')
+    
+    item = {'UserId': user_id, 'NoteId': note_id, 'Note': note_content}
+    if attachment:
+        item['Attachment'] = attachment
+        
+    table.put_item(Item=item)
+    
+    # Structured JSON Logging + Custom Metric
+    logger.info(f"Note {note_id} created successfully")
+    metrics.add_metric(name="NotesCreated", unit="Count", value=1)
+    
+    # Powertools automatically formats the HTTP 200 response with CORS headers!
+    return {'NoteId': note_id, 'Note': note_content, 'Attachment': attachment}
+
+
+@app.get("/notes")
+@tracer.capture_method
+def get_notes():
+    user_id = get_user_id()
+    response = table.query(KeyConditionExpression=Key('UserId').eq(user_id))
+    return response.get('Items', [])
+
+
+@app.put("/notes/<note_id>")
+@tracer.capture_method
+def update_note(note_id: str): # <note_id> is automatically pulled from the URL!
+    user_id = get_user_id()
+    body = app.current_event.json_body
+    note_content = body.get('Note')
+    
+    if not note_content:
+        raise BadRequestError("Note content is required.")
+        
+    table.update_item(
+        Key={'UserId': user_id, 'NoteId': note_id},
+        UpdateExpression="SET Note = :val1",
+        ExpressionAttributeValues={":val1": note_content}
+    )
+    
+    logger.info(f"Note {note_id} updated")
+    return {"message": "Note updated successfully", "NoteId": note_id}
+
+
+@app.delete("/notes/<note_id>")
+@tracer.capture_method
+def delete_note(note_id: str):
+    user_id = get_user_id()
+    table.delete_item(Key={'UserId': user_id, 'NoteId': note_id})
+    
+    logger.info(f"Note {note_id} deleted")
+    metrics.add_metric(name="NotesDeleted", unit="Count", value=1)
+    
+    return {"message": "Note deleted"}
+
+
+@tracer.capture_lambda_handler
+@logger.inject_lambda_context(correlation_id_path="requestContext.requestId", log_event=True)
+@metrics.log_metrics(capture_cold_start_metric=True)
 def lambda_handler(event, context):
-    try:
-        # 1. SECURE IDENTITY EXTRACTION
-        authorizer = event.get('requestContext', {}).get('authorizer', {})
-        jwt_claims = authorizer.get('jwt', {}).get('claims')
-
-        if not jwt_claims:
-            jwt_claims = authorizer.get('claims', {})
-
-        user_id = jwt_claims.get('sub')
-        if not user_id:
-            logger.error("Unauthorized attempt.")
-            return {"statusCode": 401, "body": json.dumps("Unauthorized")}
-
-        # 2. EXTRACT HTTP METHOD
-        # Supports both API Gateway HTTP API (Format 2.0) and REST API (Format 1.0)
-        http_method = event.get('requestContext', {}).get('http', {}).get('method') or event.get('httpMethod')
-
-        # --- ROUTER ---
-
-        # CREATE NOTE (POST)
-        if http_method == 'POST':
-            body = json.loads(event.get('body', '{}'))
-            note_content = body.get('Note')
-            attachment = body.get('Attachment')
-
-            if not note_content:
-                return {"statusCode": 400, "body": json.dumps("Note content is required.")}
-
-            note_id = str(uuid.uuid4())
-            item = {'UserId': user_id, 'NoteId': note_id, 'Note': note_content}
-            if attachment:
-                item['Attachment'] = attachment
-
-            table.put_item(
-                Item=item
-            )
-            logger.info(json.dumps({"message": "Note created successfully", "user_id": user_id, "note_id": note_id}))
-            return {
-                'statusCode': 201,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({'NoteId': note_id, 'Note': note_content, 'Attachment': attachment, 'Message': 'Successfully saved note'})
-            }
-
-        # READ NOTES (GET)
-        elif http_method == 'GET':
-            # Query DynamoDB for ONLY this user's notes
-            response = table.query(
-                KeyConditionExpression=Key('UserId').eq(user_id)
-            )
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps(response.get('Items', []))
-            }
-
-        # UPDATE NOTE (PUT)
-        elif http_method == 'PUT':
-            path_params = event.get('pathParameters', {}) or {}
-            note_id = path_params.get('id')
-
-            body = json.loads(event.get('body', '{}'))
-            note_content = body.get('Note')
-
-            if not note_id or not note_content:
-                return {"statusCode": 400, "body": json.dumps("Note ID and Note content are required.")}
-
-            # Perform a surgical update on just the 'Note' attribute
-            table.update_item(
-                Key={'UserId': user_id, 'NoteId': note_id},
-                UpdateExpression="SET Note = :val1",
-                ExpressionAttributeValues={":val1": note_content}
-            )
-
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({"message": "Note updated successfully", "NoteId": note_id})
-            }
-
-        # DELETE NOTE (DELETE)
-        elif http_method == 'DELETE':
-            # Extract the {id} variable from the URL path (e.g., /notes/12345)
-            path_params = event.get('pathParameters', {}) or {}
-            note_id = path_params.get('id')
-
-            if not note_id:
-                return {"statusCode": 400, "body": json.dumps("Note ID is required in the path.")}
-
-            table.delete_item(
-                Key={'UserId': user_id, 'NoteId': note_id}
-            )
-            return {
-                'statusCode': 200,
-                'headers': {'Content-Type': 'application/json'},
-                'body': json.dumps({"message": "Note deleted"})
-            }
-
-        else:
-            return {"statusCode": 405, "body": json.dumps("Method Not Allowed")}
-
-    except Exception as e:
-        logger.exception("Internal Server Error occurred.")
-        return {"statusCode": 500, "body": json.dumps("Internal Server Error")}
+    # Pass the raw AWS event to the Router to handle everything
+    return app.resolve(event, context)

@@ -4,12 +4,6 @@ module "database" {
   env    = terraform.workspace
 }
 
-# 2. STATE REFACTORING: Prevent Data Loss!
-# This tells Terraform: "The table still exists, its code just moved."
-moved {
-  from = aws_dynamodb_table.notes_table
-  to   = module.database.aws_dynamodb_table.notes_table
-}
 
 # 2. Call the Auth Module
 module "auth" {
@@ -17,16 +11,6 @@ module "auth" {
   env    = terraform.workspace
 }
 
-# STATE REFACTORING: Protect the Cognito Database!
-moved {
-  from = aws_cognito_user_pool.user_pool
-  to   = module.auth.aws_cognito_user_pool.user_pool
-}
-
-moved {
-  from = aws_cognito_user_pool_client.user_pool_client
-  to   = module.auth.aws_cognito_user_pool_client.user_pool_client
-}
 
 # 3. Call the Storage Module
 module "storage" {
@@ -36,36 +20,6 @@ module "storage" {
   # Data passing from Auth -> Storage
   user_pool_endpoint = module.auth.user_pool_endpoint
   client_id          = module.auth.client_id
-}
-
-# STATE REFACTORING: Protect S3 and Identity Pool
-moved {
-  from = random_pet.bucket_suffix
-  to   = module.storage.random_pet.bucket_suffix
-}
-moved {
-  from = aws_s3_bucket.attachments
-  to   = module.storage.aws_s3_bucket.attachments
-}
-moved {
-  from = aws_s3_bucket_cors_configuration.attachments_cors
-  to   = module.storage.aws_s3_bucket_cors_configuration.attachments_cors
-}
-moved {
-  from = aws_cognito_identity_pool.identity_pool
-  to   = module.storage.aws_cognito_identity_pool.identity_pool
-}
-moved {
-  from = aws_iam_role.auth_user_role
-  to   = module.storage.aws_iam_role.auth_user_role
-}
-moved {
-  from = aws_iam_role_policy.auth_user_s3_policy
-  to   = module.storage.aws_iam_role_policy.auth_user_s3_policy
-}
-moved {
-  from = aws_cognito_identity_pool_roles_attachment.main
-  to   = module.storage.aws_cognito_identity_pool_roles_attachment.main
 }
 
 
@@ -83,84 +37,45 @@ module "api" {
   user_pool_endpoint = module.auth.user_pool_endpoint
 }
 
-# STATE REFACTORING: Protect Compute and Routing
-moved {
-  from = aws_iam_role.lambda_exec_role
-  to   = module.api.aws_iam_role.lambda_exec_role
-}
-moved {
-  from = aws_iam_role_policy_attachment.lambda_basic_execution
-  to   = module.api.aws_iam_role_policy_attachment.lambda_basic_execution
-}
-moved {
-  from = aws_lambda_function.create_note_function
-  to   = module.api.aws_lambda_function.create_note_function
-}
-moved {
-  from = aws_apigatewayv2_api.http_api
-  to   = module.api.aws_apigatewayv2_api.http_api
-}
-moved {
-  from = aws_apigatewayv2_integration.lambda_integration
-  to   = module.api.aws_apigatewayv2_integration.lambda_integration
-}
-moved {
-  from = aws_apigatewayv2_route.post_route
-  to   = module.api.aws_apigatewayv2_route.post_route
-}
-moved {
-  from = aws_apigatewayv2_route.get_route
-  to   = module.api.aws_apigatewayv2_route.get_route
-}
-moved {
-  from = aws_apigatewayv2_route.put_route
-  to   = module.api.aws_apigatewayv2_route.put_route
-}
-moved {
-  from = aws_apigatewayv2_route.delete_route
-  to   = module.api.aws_apigatewayv2_route.delete_route
-}
-moved {
-  from = aws_apigatewayv2_stage.default_stage
-  to   = module.api.aws_apigatewayv2_stage.default_stage
-}
-moved {
-  from = aws_lambda_permission.api_gw_permission
-  to   = module.api.aws_lambda_permission.api_gw_permission
-}
-moved {
-  from = aws_apigatewayv2_authorizer.cognito_authorizer
-  to   = module.api.aws_apigatewayv2_authorizer.cognito_authorizer
-}
 
 
 # --- SSM PARAMETER STORE (THE BRIDGE) ---
 
 resource "aws_ssm_parameter" "api_endpoint" {
+  #checkov:skip=CKV2_AWS_34:This parameter does not contain sensitive data.
+
   name  = "/notesapp/${terraform.workspace}/api-endpoint"
   type  = "String"
   value = module.api.api_endpoint
 }
 
 resource "aws_ssm_parameter" "user_pool_id" {
+  #checkov:skip=CKV2_AWS_34:This parameter does not contain sensitive data.
+
   name  = "/notesapp/${terraform.workspace}/user-pool-id"
   type  = "String"
   value = module.auth.user_pool_id
 }
 
 resource "aws_ssm_parameter" "client_id" {
+  #checkov:skip=CKV2_AWS_34:This parameter does not contain sensitive data.
+
   name  = "/notesapp/${terraform.workspace}/client-id"
   type  = "String"
   value = module.auth.client_id
 }
 
 resource "aws_ssm_parameter" "s3_bucket_name" {
+  #checkov:skip=CKV2_AWS_34:This parameter does not contain sensitive data.
+
   name  = "/notesapp/${terraform.workspace}/s3-bucket-name"
   type  = "String"
   value = module.storage.bucket_name
 }
 
 resource "aws_ssm_parameter" "identity_pool_id" {
+  #checkov:skip=CKV2_AWS_34:This parameter does not contain sensitive data.
+
   name  = "/notesapp/${terraform.workspace}/identity-pool-id"
   type  = "String"
   value = module.storage.identity_pool_id

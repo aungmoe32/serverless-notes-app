@@ -8,6 +8,14 @@ resource "random_pet" "bucket_suffix" {
 
 # 2. Create the S3 Bucket for Attachments
 resource "aws_s3_bucket" "attachments" {
+  # checkov:skip=CKV_AWS_18: S3 Access logging is not required for personal attachments.
+  # checkov:skip=CKV_AWS_21: Versioning is not required for this bucket.
+  # checkov:skip=CKV_AWS_144: Cross-region replication is overkill.
+  # checkov:skip=CKV_AWS_145: Default AWS S3 encryption is sufficient, skipping KMS.
+  # checkov:skip=CKV2_AWS_6: Public access block is handled at the account level.
+  # checkov:skip=CKV2_AWS_61: Lifecycle policies are not required for this practice app.
+  # checkov:skip=CKV2_AWS_62: S3 Event notifications are not currently needed.
+
   bucket = "notes-attachments-${random_pet.bucket_suffix.id}-${terraform.workspace}"
 }
 
