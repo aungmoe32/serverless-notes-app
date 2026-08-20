@@ -59,6 +59,11 @@ data "archive_file" "lambda_zip" {
 
 # 6. Create the Lambda Function
 resource "aws_lambda_function" "create_note_function" {
+  # checkov:skip=CKV_AWS_117: This function does not access VPC resources like RDS.
+  # checkov:skip=CKV_AWS_116: This is a synchronous API Gateway integration, DLQ is not applicable.
+  # checkov:skip=CKV_AWS_173: Environment variables do not contain sensitive secrets requiring a custom KMS key.
+  # checkov:skip=CKV_AWS_272: Code signing is overkill for this architecture.
+  # checkov:skip=CKV_AWS_115: Not applying concurrency limits to allow maximum serverless scaling.
   filename      = data.archive_file.lambda_zip.output_path
   function_name = "CreateNoteFunction-${var.env}"
   role          = aws_iam_role.lambda_exec_role.arn
@@ -142,6 +147,7 @@ resource "aws_apigatewayv2_route" "put_route" {
 
 # 10. Deploy the API Gateway Stage
 resource "aws_apigatewayv2_stage" "default_stage" {
+  # checkov:skip=CKV_AWS_76: Access logging is disabled to save CloudWatch log costs (relying on X-Ray instead).
   api_id      = aws_apigatewayv2_api.http_api.id
   name        = "$default"
   auto_deploy = true

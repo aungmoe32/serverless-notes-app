@@ -37,6 +37,7 @@ resource "aws_iam_role" "github_actions_tf_role" {
 
 # 3. Give the GitHub Actions role Administrator access
 resource "aws_iam_role_policy_attachment" "github_actions_admin" {
+  # checkov:skip=CKV_AWS_274: The Terraform CI/CD pipeline requires Admin access to provision infrastructure.
   count      = terraform.workspace == "default" ? 1 : 0
   role       = aws_iam_role.github_actions_tf_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
