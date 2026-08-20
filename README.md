@@ -6,7 +6,7 @@ This project goes beyond a simple "Hello World" tutorial. It is built using stri
 
 ## Architecture
 
-![Architecture](architecture.png)
+![Architecture](images/architecture.png)
 
 ## Tech Stack
 
@@ -47,6 +47,13 @@ This project goes beyond a simple "Hello World" tutorial. It is built using stri
 - **API Gateway Payload Version Mismatches:** The AWS Lambda Powertools router crashed because Terraform defaults HTTP APIs to Payload Format Version 1.0, while the router expected 2.0; I fixed this by explicitly forcing `payload_format_version = "2.0"` in the Terraform integration and rewriting the Python token extraction to traverse the raw JSON event.
 - **Production Environment Variable Syncing:** The React app crashed in production with a `Missing bucket name` error because the cloud build server couldn't read local Terraform outputs; I engineered an automated bridge by having Terraform write backend URLs to AWS SSM Parameter Store, and modifying the Amplify build script to fetch and inject them into a `.env` file dynamically during deployment.
 - **Preventing Data Loss During Modularization:** Refactoring the Terraform monolith into reusable modules threatened to destroy the live database and Cognito user pool; I prevented this data loss by using `moved` blocks to surgically remap the resource addresses in the state file, achieving a seamless, zero-downtime architectural migration.
+
+<p align="center">
+  <img src="images/app.png" width="250" title="App">
+  <img src="images/segments.png" width="250" title="Segments">
+  <img src="images/metrics.png" width="250" title="Metrics">
+  <img src="images/traces.png" width="250" title="Traces">
+</p>
 
 ## How to Run Locally
 
